@@ -17,17 +17,17 @@ NexTime is an AI-powered scheduling application designed to optimize group coord
 ### 1. Branching Strategy
 - **main**: Production-ready code only. Managed by Leader.
 - **develop**: Integration branch for all features.
-- **feature/[shortened-name]/[feature-description]**: Individual tasks.
+- **[shortened-name]/[feature-description]**: Individual tasks.
     - **Format:** `[initials][name]/[feature-description]`
     - **Example (Nguyễn Hảo Khang):** `nhkhang/ai-checklist-integration`
     - **Note:** Use hyphens (-) to separate words in the feature description.
 
 ### 2. Development Process
 1. `git checkout develop && git pull origin develop`
-2. `git checkout -b feature/your-name/your-feature`
+2. `git checkout -b shortened-name/feature-description`
 3. Develop & Test locally.
 4. `git add . && git commit -m "feat: short description of work"`
-5. `git push origin feature/your-name/your-feature`
+5. `git push origin shortened-name/feature-description`
 6. Create a **Pull Request (PR)** to `develop` for Leader review.
 
 ### 3. Commit Convention
