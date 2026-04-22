@@ -1,13 +1,14 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Types } from 'mongoose';
 
-export enum EventType {
-  WEEKLY = 'weekly',
-  ONESHOT = 'oneshot',
-}
 
-@Schema({ discriminatorKey: 'type', timestamps: true })
-export class Event extends Document {
+
+@Schema({ 
+  timestamps: true, 
+  discriminatorKey: 'type',
+  collection: 'events'
+})
+export class Event extends Document { 
   @Prop({ required: true })
   title!: string;
 
@@ -29,8 +30,11 @@ export class Event extends Document {
   @Prop({ required: true })
   userId!: Types.ObjectId;
 
-  @Prop({ required: true })
+  @Prop({ type: Types.ObjectId })
   groupId?: Types.ObjectId;
+
+  @Prop({ default: 15 })
+  remindBefore!: number;
 }
 
 export const EventSchema = SchemaFactory.createForClass(Event);

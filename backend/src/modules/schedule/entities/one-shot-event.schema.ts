@@ -1,10 +1,10 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { Event, EventType } from './event.schema';
+import { Event } from './event.schema';
 
 @Schema()
 export class OneShotEvent extends Event {
   @Prop({ required: true })
-  specificDate!: Date;
+  date!: Date;
 }
 
 export const OneShotEventSchema = SchemaFactory.createForClass(OneShotEvent);

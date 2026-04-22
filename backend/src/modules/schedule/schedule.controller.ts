@@ -1,25 +1,38 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, UsePipes, ValidationPipe } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
+import { Controller, Get, Post, Body, Patch, Param, Delete, UsePipes, ValidationPipe, Req } from '@nestjs/common';
+import { UnauthorizedException } from '@nestjs/common';
+import { UseGuards } from '@nestjs/common';
+import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { ScheduleService } from './schedule.service';
 import { CreateWeeklyEventDto } from './dto/create-weekly-event.dto';
 import { CreateOneShotEventDto } from './dto/create-one-shot-event.dto';
+import { EventResponseDto } from './entities/event-response.dto';
 
 @ApiTags('schedule')
 @Controller('schedule')
 export class ScheduleController {
   constructor(private readonly scheduleService: ScheduleService) {}
 
-  @Post('weekly')
-  @ApiOperation({ summary: 'Create weekly recurring event' })
+@UseGuards(JwtAuthGuard)
+@Post('weekly')
+  @ApiOperation({ summary: 'Create weekly recurring event (populates MonthlyCalendar)' })
+  @ApiBearerAuth()
   @ApiResponse({ status: 201, description: 'Event created.' })
-  createWeekly(@Body(ValidationPipe) createWeeklyEventDto: CreateWeeklyEventDto) {
-    return this.scheduleService.create({ ...createWeeklyEventDto, type: 'weekly' });
+async createWeekly(@Req() req: any, @Body(ValidationPipe) createWeeklyEventDto: CreateWeeklyEventDto) {
+    const groupId = req.user?.groupId || null;
+    const event = await this.scheduleService.createWeekly({ ...createWeeklyEventDto, groupId }, req.user.userId);
+    return event.toObject({ versionKey: false });
   }
 
+  @UseGuards(JwtAuthGuard)
   @Post('oneshot')
   @ApiOperation({ summary: 'Create one-shot event' })
-  createOneShot(@Body(ValidationPipe) createOneShotEventDto: CreateOneShotEventDto) {
-    return this.scheduleService.create({ ...createOneShotEventDto, type: 'oneshot' });
+  @ApiBearerAuth()
+  @ApiResponse({ status: 201, description: 'Event created.' })
+  async createOneShot(@Req() req: any, @Body(ValidationPipe) createOneShotEventDto: CreateOneShotEventDto) {
+    const groupId = req.user?.groupId || null;
+    const event = await this.scheduleService.createOneShot({ ...createOneShotEventDto, groupId }, req.user.userId);
+    return event.toObject({ versionKey: false });
   }
 
   @Get()

@@ -4,6 +4,8 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { ScheduleModule } from './modules/schedule/schedule.module';
 import { ChecklistModule } from './modules/checklist/checklist.module';
 import { GroupModule } from './modules/group/group.module';
+import { UserModule } from './modules/user/user.module';
+import { AuthModule } from './modules/auth/auth.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { DatabaseConfig } from './configs/database.config';
@@ -22,6 +24,8 @@ import { DatabaseConfig } from './configs/database.config';
     ScheduleModule,
     ChecklistModule,
     GroupModule,
+    UserModule,
+    AuthModule,
   ],
   controllers: [AppController],
   providers: [AppService],
