@@ -1,11 +1,11 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsString, IsNotEmpty, IsInt, Min, Max, IsOptional, IsHexColor } from 'class-validator';
+import { IsString, IsNotEmpty, IsInt, Min, Max, IsOptional, IsHexColor, IsNumber } from 'class-validator';
 
 export class CreateWeeklyEventDto {
   @ApiProperty({ example: 'Team Meeting' })
   @IsString()
   @IsNotEmpty()
-  title: string;
+  title!: string;
 
   @ApiProperty({ example: 'Weekly standup discussion' })
   @IsString()
@@ -14,24 +14,29 @@ export class CreateWeeklyEventDto {
 
   @ApiProperty({ example: '09:00' })
   @IsString()
-  startTime: string;
+  startTime!: string;
 
   @ApiProperty({ example: '10:00' })
   @IsString()
-  endTime: string;
+  endTime!: string;
 
   @ApiProperty({ example: 1, description: '1=Monday,7=Sunday' })
   @IsInt()
   @Min(1)
   @Max(7)
-  dayOfWeek: number;
+  dayOfWeek!: number;
 
   @ApiProperty({ example: '#FF5733' })
   @IsString()
   @IsHexColor()
-  colorHex: string;
+  colorHex!: string;
 
   @ApiProperty({ example: 'work' })
   @IsString()
-  tag: string;
+  tag!: string;
+
+  @ApiProperty({ example: 15, description: 'Minutes before to remind' })
+  @IsOptional()
+  @IsNumber()
+  remindBefore?: number;
 }

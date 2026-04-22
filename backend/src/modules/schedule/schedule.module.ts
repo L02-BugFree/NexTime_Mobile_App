@@ -5,17 +5,22 @@ import { ScheduleController } from './schedule.controller';
 import { Event, EventSchema } from './entities/event.schema';
 import { WeeklyEvent, WeeklyEventSchema } from './entities/weekly-event.schema';
 import { OneShotEvent, OneShotEventSchema } from './entities/one-shot-event.schema';
+import { MonthlyCalendar, MonthlyCalendarSchema } from './entities/monthly-calendar.schema';
 
 @Module({
   imports: [
-    MongooseModule.forFeature([
+MongooseModule.forFeature([
       {
         name: Event.name,
         schema: EventSchema,
         discriminators: [
-          { name: WeeklyEvent.name, schema: WeeklyEventSchema },
-          { name: OneShotEvent.name, schema: OneShotEventSchema },
+          { name: 'weekly', schema: WeeklyEventSchema },
+          { name: 'oneshot', schema: OneShotEventSchema },
         ],
+      },
+      {
+        name: MonthlyCalendar.name,
+        schema: MonthlyCalendarSchema,
       },
     ]),
   ],
