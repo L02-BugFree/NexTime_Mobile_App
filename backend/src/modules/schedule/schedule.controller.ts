@@ -1,11 +1,13 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, UsePipes, ValidationPipe, Req } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, UsePipes, ValidationPipe, Req, Query } from '@nestjs/common';
 import { UnauthorizedException } from '@nestjs/common';
 import { UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 import { ScheduleService } from './schedule.service';
 import { CreateWeeklyEventDto } from './dto/create-weekly-event.dto';
 import { CreateOneShotEventDto } from './dto/create-one-shot-event.dto';
+import { CreateOneshotDto } from './dto/create-oneshot.dto';
+import { UpdateEventDto } from './dto/update-event.dto';
 import { EventResponseDto } from './entities/event-response.dto';
 
 @ApiTags('schedule')
@@ -24,41 +26,44 @@ async createWeekly(@Req() req: any, @Body(ValidationPipe) createWeeklyEventDto: 
     return event.toObject({ versionKey: false });
   }
 
-  @UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard)
   @Post('oneshot')
-  @ApiOperation({ summary: 'Create one-shot event' })
+  @ApiOperation({ summary: 'Create one-shot event (YYYY-MM-DD format)' })
   @ApiBearerAuth()
-  @ApiResponse({ status: 201, description: 'Event created.' })
-  async createOneShot(@Req() req: any, @Body(ValidationPipe) createOneShotEventDto: CreateOneShotEventDto) {
-    const groupId = req.user?.groupId || null;
-    const event = await this.scheduleService.createOneShot({ ...createOneShotEventDto, groupId }, req.user.userId);
-    return event.toObject({ versionKey: false });
+  @ApiResponse({ status: 201, description: 'Event created' })
+  async createOneshot(@Req() req: any, @Body(ValidationPipe) dto: CreateOneshotDto) {
+    return this.scheduleService.createOneshot(req.user.userId, dto);
   }
 
-  @Get()
-  @ApiOperation({ summary: 'Get all events (filter by group optional)' })
-  findAll() {
-    return this.scheduleService.findAll();
+@UseGuards(JwtAuthGuard)
+  @Get('monthly')
+  @ApiOperation({ summary: 'Get monthly calendar. Param ?month=YYYY-MM. Empty array if no data.' })
+  @ApiBearerAuth()
+  async getMonthly(@Req() req: any, @Query('month') month?: string) {
+    return this.scheduleService.getMonthly(req.user.userId, month);
   }
 
-  @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.scheduleService.findOne(id);
-  }
-
+  @UseGuards(JwtAuthGuard)
   @Get('heatmap/:groupId')
   @ApiOperation({ summary: 'Get group heatmap overlay' })
-  getHeatmap(@Param('groupId') groupId: string) {
+  @ApiBearerAuth()
+  getHeatmap(@Req() req: any, @Param('groupId') groupId: string) {
     return this.scheduleService.getHeatmap(groupId, new Date(), new Date());
   }
 
-  @Patch(':id')
-  update(@Param('id') id: string, @Body() updateEventDto: any) {
-    return this.scheduleService.update(id, updateEventDto);
+@UseGuards(JwtAuthGuard)
+  @Patch(':eventId')
+  @ApiOperation({ summary: 'Update event - pulls old slot, pushes new slot to MonthlyCalendar' })
+  @ApiBearerAuth()
+  async update(@Req() req: any, @Param('eventId') eventId: string, @Body() dto: UpdateEventDto) {
+    return this.scheduleService.update(req.user.userId, eventId, dto);
   }
 
-  @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.scheduleService.remove(id);
+  @UseGuards(JwtAuthGuard)
+  @Delete(':eventId')
+  @ApiOperation({ summary: 'Delete event - pulls slots from MonthlyCalendar' })
+  @ApiBearerAuth()
+  async delete(@Req() req: any, @Param('eventId') eventId: string) {
+    return this.scheduleService.delete(req.user.userId, eventId);
   }
 }

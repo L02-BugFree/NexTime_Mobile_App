@@ -65,7 +65,12 @@ NexTime is an AI-powered scheduling application designed to optimize group coord
 
 ---
 
-## Current Milestones
-- **Auth (Register/Login):** Completed.
-- **Weekly Schedule Engine:** Completed.
-- **AI Checklist Integration:** In Progress.
+## Current Milestones (Phase 1 Completed)
+- [x] **Auth Module:** Register, Login, JWT, OTP Mock, and Hard Delete Cascade.
+- [ ] **Schedule Engine:** Oneshot/Weekly events and Monthly Calendar Flattening.
+- [ ] **Social Graph:** Strict Visibility, Mutual Friends check, Friend Requests, and Blocking.
+- [ ] **Room & Chat:** Self-chat, Direct 1-1, and Group Rooms.
+- [ ] **Heatmap & Polls:** Group availability heatmap and auto-scheduling polls.
+- [ ] **AI Checklist Integration:** Mock endpoint created (Pending Gemini SDK connection).
+- [ ] **Frontend Development:** Ongoing.
+

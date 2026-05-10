@@ -33,8 +33,11 @@ export class Event extends Document {
   @Prop({ type: Types.ObjectId })
   groupId?: Types.ObjectId;
 
+  type!: string; // TS declaration only, Mongoose handles the discriminator key under the hood
+
   @Prop({ default: 15 })
   remindBefore!: number;
 }
 
+export type EventDocument = Event & Document;
 export const EventSchema = SchemaFactory.createForClass(Event);
