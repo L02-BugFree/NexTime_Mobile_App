@@ -18,10 +18,16 @@ export enum Gender {
   NOT_SPECIFIED = 'NotSpecified',
 }
 
+export enum VisibilitySetting {
+  EVERYONE = 'everyone',
+  FRIENDS = 'friends',
+  CONTACTS = 'contacts',
+}
+
 @Schema({ timestamps: true })
 export class User extends Document {
   @Prop({ required: true, unique: true })
-  email: string;
+  email!: string;
 
   @Prop({ required: true })
   password: string;
@@ -41,20 +47,47 @@ export class User extends Document {
   @Prop({ type: String, enum: Theme, default: Theme.DARK })
   theme: Theme;
 
-  @Prop({ type: {
-    isAnonymousOnHeatmap: { type: Boolean, default: false },
-    showBirthday: { type: Boolean, default: true },
-  }})
+  @Prop({
+    type: {
+      isAnonymousOnHeatmap: { type: Boolean, default: false },
+      showBirthday: { type: Boolean, default: true },
+      isActiveStatus: { type: Boolean, default: true },
+      anonymousOnGroupCalendar: { type: Boolean, default: false },
+    },
+  })
   privacySettings: {
     isAnonymousOnHeatmap: boolean;
     showBirthday: boolean;
+    isActiveStatus: boolean;
+    anonymousOnGroupCalendar: boolean;
   };
+
+  @Prop({ type: String })
+  bio?: string;
 
   @Prop()
   birthdate?: Date;
 
   @Prop({ type: String, enum: Gender })
   gender?: Gender;
+
+  @Prop({ type: String, enum: VisibilitySetting, default: VisibilitySetting.EVERYONE })
+  visibilitySetting: VisibilitySetting;
+
+  @Prop({ type: [{ type: Types.ObjectId, ref: 'User' }], default: [] })
+  friends: Types.ObjectId[];
+
+  @Prop({ type: [{ type: Types.ObjectId, ref: 'User' }], default: [] })
+  friendRequests: Types.ObjectId[];
+
+  @Prop({ type: [{ type: Types.ObjectId, ref: 'User' }], default: [] })
+  blockedUsers: Types.ObjectId[];
+
+  @Prop({ type: String })
+  otpCode?: string;
+
+  @Prop({ type: Date })
+  otpExpiry?: Date;
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);

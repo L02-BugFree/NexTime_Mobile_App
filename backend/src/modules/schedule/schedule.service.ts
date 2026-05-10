@@ -1,8 +1,10 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
-import { Event } from './entities/event.schema';
+import { Event, EventDocument } from './entities/event.schema';
 import { MonthlyCalendar } from './entities/monthly-calendar.schema';
+import { CreateOneshotDto } from './dto/create-oneshot.dto';
+import { UpdateEventDto } from './dto/update-event.dto';
 
 @Injectable()
 export class ScheduleService {
@@ -19,22 +21,38 @@ export class ScheduleService {
     return event;
   }
 
-  async createOneShot(createOneShotDto: any, userId: string, groupId?: string) {
-    const data = { ...createOneShotDto, type: 'oneshot', userId, groupId };
+  async createOneshot(userId: string, dto: CreateOneshotDto): Promise<any> {
+    const startTime = new Date(`${dto.date}T${dto.startTime}:00`);
+    const endTime = new Date(`${dto.date}T${dto.endTime}:00`);
+    const data = { 
+      title: dto.title, 
+      description: dto.description, 
+      date: dto.date,
+      startTime: startTime.toISOString(), 
+      endTime: endTime.toISOString(), 
+      colorHex: dto.colorHex, 
+      tag: dto.tag, 
+      type: 'oneshot', 
+      userId 
+    };
     const event = await this.eventModel.create(data);
-    const eventId = event._id;
-    const startTime = new Date(createOneShotDto.startTime);
-    const dayOfWeek = startTime.getDay() || 7; // 1-7
-    await this.populateOneShotOccurrence(userId, {
-      title: createOneShotDto.title,
-      description: createOneShotDto.description,
-      fullDate: startTime,
-      dayOfWeek,
-      startTime: createOneShotDto.startTime,
-      endTime: createOneShotDto.endTime,
-      colorHex: createOneShotDto.colorHex,
-      type: 'oneshot',
-    }, eventId, groupId);
+    // Add to MonthlyCalendar
+    const monthStr = dto.date.slice(0,7);
+    await this.monthlyCalendarModel.findOneAndUpdate(
+      { userId, month: monthStr },
+      { $push: { eventsInMonth: {
+        originalEventId: event._id,
+        title: dto.title,
+        description: dto.description,
+        fullDate: startTime,
+        dayOfWeek: startTime.getDay() || 7,
+        startTime: dto.startTime,
+        endTime: dto.endTime,
+        colorHex: dto.colorHex,
+        type: 'oneshot',
+      }}},
+      { upsert: true }
+    );
     return event;
   }
 
@@ -120,36 +138,13 @@ export class ScheduleService {
     }
   }
 
-  async getHeatmap(groupId: string, startDate: Date, endDate: Date) {
-    // TODO: Get real group members from GroupService
-    const mockMembers = ['mockuser1', 'mockuser2'];
-    const monthStr = startDate.toISOString().slice(0, 7);
-
-    const calendars = await this.monthlyCalendarModel.find({
-      userId: { $in: mockMembers },
-      month: monthStr,
-    });
-
-    const slots: any[] = this.generateSlots(startDate, endDate);
-
-    calendars.forEach(calendar => {
-      calendar.eventsInMonth.forEach((event: any) => {
-        const eventStart = new Date(event.fullDate);
-        const eventEnd = new Date(eventStart.getTime() + parseInt(event.endTime.split(':')[0]) * 60 * 60 * 1000 + parseInt(event.endTime.split(':')[1]) * 60 * 1000);
-        slots.forEach((s: any) => {
-          if (this.slotsOverlap(eventStart, eventEnd, new Date(s.startTime), new Date(s.endTime))) {
-            s.busyCount++;
-            s.avatars.push('https://example.com/avatar.jpg');
-          }
-        });
-      });
-    });
-
-    slots.forEach((s: any) => {
-      s.isConflict = s.busyCount / mockMembers.length > 0.8;
-    });
-
-    return { groupId, slots };
+  async getMonthly(userId: string, month?: string): Promise<any[]> {
+    if (!month) {
+      const now = new Date();
+      month = now.toISOString().slice(0,7);
+    }
+    const calendar = await this.monthlyCalendarModel.findOne({ userId, month });
+    return calendar ? calendar.eventsInMonth : [];
   }
 
   private slotsOverlap(start1: Date, end1: Date, start2: Date, end2: Date): boolean {
@@ -175,11 +170,107 @@ export class ScheduleService {
     return this.eventModel.findById(id).exec();
   }
 
-  async update(id: string, updateEventDto: any) {
-    return this.eventModel.findByIdAndUpdate(id, updateEventDto, { new: true }).exec();
+  async update(userId: string, eventId: string, dto: any): Promise<any> {
+    const event = await this.eventModel.findOne({ _id: eventId, userId });
+    if (!event) throw new NotFoundException('Event not found');
+    
+    // Pull old slot from all months
+    await this.monthlyCalendarModel.updateMany(
+      { userId, 'eventsInMonth.originalEventId': eventId },
+      { $pull: { eventsInMonth: { originalEventId: eventId } } }
+    );
+    
+    // Update event
+    await this.eventModel.findByIdAndUpdate(eventId, dto, { new: true });
+    
+    // Push new slot (treat as oneshot for simplicity)
+    const monthStr = event.startTime.slice(0,7);
+    await this.monthlyCalendarModel.findOneAndUpdate(
+      { userId, month: monthStr },
+      { $push: { eventsInMonth: {
+        originalEventId: eventId,
+        title: dto.title || event.title,
+        description: dto.description || event.description,
+        fullDate: new Date(event.startTime),
+        dayOfWeek: new Date(event.startTime).getDay() || 7,
+        startTime: dto.startTime || event.startTime.split('T')[1].slice(0,5),
+        endTime: dto.endTime || event.endTime.split('T')[1].slice(0,5),
+        colorHex: dto.colorHex || event.colorHex,
+        type: event.type || 'oneshot',
+      }}},
+      { upsert: true }
+    );
+    
+    return await this.eventModel.findById(eventId);
   }
 
-  async remove(id: string) {
-    return this.eventModel.findByIdAndDelete(id).exec();
+  async delete(userId: string, eventId: string): Promise<{ message: string }> {
+    const event = await this.eventModel.findOneAndDelete({ _id: eventId, userId });
+    if (!event) throw new NotFoundException('Event not found');
+    
+    await this.monthlyCalendarModel.updateMany(
+      { userId, 'eventsInMonth.originalEventId': eventId },
+      { $pull: { eventsInMonth: { originalEventId: eventId } } }
+    );
+    
+    return { message: 'Event deleted successfully' };
   }
+
+  async getHeatmap(groupId: string, startDate: Date, endDate: Date): Promise<any> {
+    // Group heatmap: count busy members per 30-minute slot across the group's users.
+    // Note: This implementation uses existing MonthlyCalendar documents and builds slots in application code.
+    if (!groupId) return { groupId, timeSlots: [] };
+
+    // Load group members directly from the `groups` collection (this service is not wired with Group model).
+    const groupDoc = await this.eventModel.db.collection('groups').findOne({ _id: groupId as any });
+    const memberIds: string[] = ((groupDoc as any)?.members || []).map((m: any) => m.toString());
+
+
+    if (memberIds.length === 0) {
+      return { groupId, timeSlots: [] };
+    }
+
+    // Determine month based on startDate.
+    const monthStr = new Date(startDate).toISOString().slice(0, 7); // YYYY-MM
+
+    const calendars = await this.eventModel.db.collection('monthlycalendars').find({
+      userId: { $in: memberIds },
+      month: { $regex: `^${monthStr}` },
+    }).toArray();
+
+    const slots = new Map<string, { startTime: string; endTime: string; busyCount: number }>();
+
+    for (const cal of calendars) {
+      const eventsInMonth = cal.eventsInMonth || [];
+      for (const ev of eventsInMonth) {
+        if (!ev?.startTime || !ev?.endTime) continue;
+
+        const slotStartBase = new Date(`1970-01-01T${ev.startTime}:00Z`);
+        const slotEndBase = new Date(`1970-01-01T${ev.endTime}:00Z`);
+
+        let cur = new Date(slotStartBase);
+        while (cur < slotEndBase) {
+          const next = new Date(cur.getTime() + 30 * 60 * 1000);
+          const key = `${cur.toISOString().slice(11, 16)}-${next.toISOString().slice(11, 16)}`;
+          const startTime = cur.toISOString().slice(11, 16);
+          const endTime = next.toISOString().slice(11, 16);
+
+          const existing = slots.get(key);
+          if (existing) {
+            existing.busyCount += 1;
+          } else {
+            slots.set(key, { startTime, endTime, busyCount: 1 });
+          }
+          cur = next;
+        }
+      }
+    }
+
+    return {
+      groupId,
+      month: monthStr,
+      timeSlots: Array.from(slots.values()).sort((a, b) => a.startTime.localeCompare(b.startTime)),
+    };
+  }
+
 }

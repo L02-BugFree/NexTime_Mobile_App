@@ -23,4 +23,11 @@ export class GroupService {
   async getHeatmap(groupId: string) {
     return this.scheduleService.getHeatmap(groupId, new Date(), new Date());
   }
+
+  async removeMemberFromAllGroups(userId: string) {
+    await this.groupModel.updateMany(
+      { members: userId },
+      { $pull: { members: userId } }
+    );
+  }
 }
