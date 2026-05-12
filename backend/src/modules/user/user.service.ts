@@ -228,8 +228,12 @@ export class UserService {
     return { message: 'Friend removed' };
   }
 
-  async blockUser(requesterId: string, targetUserId: string): Promise<{ message: string }> {
-    if (requesterId === targetUserId) throw new BadRequestException('Cannot block yourself');
+  async blockUser(
+    requesterId: string,
+    targetUserId: string,
+  ): Promise<{ message: string }> {
+    if (requesterId === targetUserId)
+      throw new BadRequestException('Cannot block yourself');
 
     const [requester, target] = await Promise.all([
       this.userModel.findById(requesterId).exec(),
@@ -239,28 +243,69 @@ export class UserService {
     if (!requester || !target) throw new NotFoundException('User not found');
 
     // If they were friends, remove from friends arrays
-    const isFriend = (requester.friends || []).some((id) => id.toString() === targetUserId);
+    const isFriend = (requester.friends || []).some(
+      (id) => id.toString() === targetUserId,
+    );
+
+    const updateData: Record<string, unknown> = {
+      $addToSet: {
+        blockedUsers: this.toObjectId(targetUserId),
+      },
+    };
+
+    if (isFriend) {
+      updateData.$pull = {
+        friends: this.toObjectId(targetUserId),
+      };
+    }
 
     await this.userModel.updateOne(
       { _id: this.toObjectId(requesterId) },
-      {
-        $addToSet: { blockedUsers: this.toObjectId(targetUserId) },
-        ...(isFriend ? { $pull: { friends: this.toObjectId(targetUserId) } } : {}),
-      } as any,
+      updateData,
     );
 
     // Also remove from target's friends array if needed
+    const targetUpdateData: Record<string, unknown> = {};
+
+    if (isFriend) {
+      targetUpdateData.$pull = {
+        friends: this.toObjectId(requesterId),
+      };
+    }
+
     await this.userModel.updateOne(
       { _id: this.toObjectId(targetUserId) },
-      {
-        ...(isFriend ? { $pull: { friends: this.toObjectId(requesterId) } } : {}),
-      } as any,
+      targetUpdateData,
     );
+
+    // Remove any pending friend requests in either direction
+    await Promise.all([
+      this.userModel.updateOne(
+        { _id: this.toObjectId(requesterId) },
+        {
+          $pull: {
+            friendRequests: this.toObjectId(targetUserId),
+          },
+        },
+      ),
+
+      this.userModel.updateOne(
+        { _id: this.toObjectId(targetUserId) },
+        {
+          $pull: {
+            friendRequests: this.toObjectId(requesterId),
+          },
+        },
+      ),
+    ]);
 
     return { message: 'User blocked' };
   }
 
-  async unblockUser(requesterId: string, targetUserId: string): Promise<{ message: string }> {
+  async unblockUser(
+    requesterId: string,
+    targetUserId: string,
+  ): Promise<{ message: string }> {
     await this.userModel.updateOne(
       { _id: this.toObjectId(requesterId) },
       { $pull: { blockedUsers: this.toObjectId(targetUserId) } },
@@ -273,18 +318,20 @@ export class UserService {
     const user = await this.userModel.findById(userId).exec();
     if (!user) throw new NotFoundException('User not found');
 
-    return this.userModel
-      .find({ _id: { $in: user.friends || [] } })
-      .exec();
+    return this.userModel.find({ _id: { $in: user.friends || [] } }).exec();
   }
 
   async listBlockedUsers(userId: string): Promise<User[]> {
-    const user = await this.userModel.findById(userId).exec();
-    if (!user) throw new NotFoundException('User not found');
-
-    return this.userModel
-      .find({ _id: { $in: user.blockedUsers || [] } })
+    const user = await this.userModel
+      .findById(userId)
+      .populate('blockedUsers', 'displayName email avatar')
       .exec();
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    return user.blockedUsers as unknown as User[];
   }
 
   async deleteAccount(userId: string): Promise<{ message: string }> {
