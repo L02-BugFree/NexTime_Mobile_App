@@ -1,5 +1,4 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { Document, Types } from 'mongoose';
 
 export enum ChecklistType {
   PAYMENT = 'payment',
@@ -7,16 +6,37 @@ export enum ChecklistType {
   POLL = 'poll',
 }
 
-@Schema({ discriminatorKey: 'type' })
-export class Checklist extends Document {
+@Schema({ timestamps: true })
+export class Checklist {
+  @Prop({ required: true, enum: ['task', 'payment', 'poll'] })
+  type!: string;
+
   @Prop({ required: true })
   title!: string;
 
   @Prop({ required: true })
-  userId!: Types.ObjectId;
+  creatorId!: string;
 
-  @Prop()
-  groupId?: Types.ObjectId;
+  // task
+  @Prop({
+    type: [{ taskName: String, assignees: [String] }],
+    default: undefined,
+  })
+  tasks?: { taskName: string; assignees: string[] }[];
+
+  // payment
+  @Prop({
+    type: [{ name: String, amount: Number }],
+    default: undefined,
+  })
+  debtors?: { name: string; amount: number }[];
+
+  // poll
+  @Prop({
+    type: [String],
+    default: undefined,
+  })
+  options?: string[];
 }
 
 export const ChecklistSchema = SchemaFactory.createForClass(Checklist);

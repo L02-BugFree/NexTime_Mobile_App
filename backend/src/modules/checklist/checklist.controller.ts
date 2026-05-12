@@ -1,28 +1,26 @@
-import { Controller, Post, Body, Get } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBody } from '@nestjs/swagger';
+import { Body, Controller, Get, Post, Req } from '@nestjs/common';
 import { ChecklistService } from './checklist.service';
 import { PreviewChecklistDto } from './dto/preview-checklist.dto';
+import { ConfirmChecklistDto } from './dto/confirm-checklist.dto';
 
-@ApiTags('checklist')
 @Controller('checklists')
 export class ChecklistController {
   constructor(private readonly checklistService: ChecklistService) {}
 
   @Post('preview')
-  @ApiOperation({ summary: 'AI preview checklist from text prompt' })
-  @ApiBody({ description: 'Raw text prompt' })
-  preview(@Body('prompt') prompt: string) {
-    return this.checklistService.preview(prompt);
+  async preview(@Body() dto: PreviewChecklistDto) {
+    return this.checklistService.preview(dto.prompt);
   }
 
   @Post('confirm')
-  @ApiOperation({ summary: 'Confirm and save previewed checklist' })
-  confirm(@Body() createChecklistDto: any) {
-    return this.checklistService.confirm(createChecklistDto);
+  async confirm(@Body() dto: ConfirmChecklistDto, @Req() req) {
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
+    const userId = req.user?.userId || 'test-user-123';
+    return this.checklistService.confirm(dto, userId);
   }
 
   @Get()
-  findAll() {
+  async getAll() {
     return this.checklistService.findAll();
   }
 }
