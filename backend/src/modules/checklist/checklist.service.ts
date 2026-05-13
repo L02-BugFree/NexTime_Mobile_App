@@ -14,7 +14,6 @@ export class ChecklistService {
   async preview(prompt: string) {
     const lowerPrompt = prompt.toLowerCase();
 
-    // Sửa thành chữ thường để đồng bộ với enum
     let type = 'task';
 
     if (
@@ -36,7 +35,6 @@ export class ChecklistService {
   }
 
   async confirm(dto: any, userId: string) {
-    // Sửa type so sánh thành chữ thường
     // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
     if (dto.type === 'task' && !dto.tasks) {
       throw new BadRequestException('tasks is required for task checklist');
@@ -54,14 +52,12 @@ export class ChecklistService {
       throw new BadRequestException('options is required for poll checklist');
     }
 
-    // Lưu vào database
     const newChecklist = new this.checklistModel({
       // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
       type: dto.type,
       // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
       title: dto.title || `${dto.type} checklist`,
       creatorId: userId,
-      // Lưu thêm data tùy theo type
       // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment
       ...(dto.type === 'task' && { tasks: dto.tasks }),
       // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment
@@ -80,5 +76,18 @@ export class ChecklistService {
 
   async findAll() {
     return this.checklistModel.find().exec();
+  }
+
+  // checklist.service.ts
+  async findAllForUser(userId: string) {
+    return this.checklistModel
+      .find({
+        $or: [
+          { creatorId: userId },
+          { 'tasks.assignees': userId },
+          { 'debtors.name': userId },
+        ],
+      })
+      .exec();
   }
 }
