@@ -6,4 +6,3 @@ export class BlockDto {
   @IsMongoId()
   targetUserId!: string;
 }
-

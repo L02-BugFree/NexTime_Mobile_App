@@ -1,21 +1,8 @@
-import { ApiProperty } from '@nestjs/swagger';
-
-export enum ChecklistType {
-  PAYMENT = 'payment',
-  TASK = 'task',
-  POLL = 'poll',
-}
+import { IsNotEmpty, IsString, MinLength } from 'class-validator';
 
 export class PreviewChecklistDto {
-  @ApiProperty()
-  type: ChecklistType;
-
-  @ApiProperty()
-  title: string;
-
-  @ApiProperty()
-  data: any; // structured data based on type
-
-  @ApiProperty()
-  rawPrompt: string;
+  @IsString()
+  @IsNotEmpty()
+  @MinLength(5)
+  prompt!: string;
 }
