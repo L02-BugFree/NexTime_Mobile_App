@@ -7,10 +7,7 @@ export class DatabaseConfig {
   constructor(private configService: ConfigService) {}
 
   createMongooseOptions(): MongooseModuleOptions {
-    const uri = this.configService.get<string>('MONGODB_URI');
-    if (!uri) {
-      throw new Error('MONGODB_URI not found in .env');
-    }
+    const uri = this.configService.get<string>('MONGODB_URI') ?? 'mongodb://localhost:27017/nextime';
     return {
       uri,
     };

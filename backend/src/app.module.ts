@@ -14,7 +14,7 @@ import { DatabaseConfig } from './configs/database.config';
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      envFilePath: '.env',
+      envFilePath: ['.env', '.env.example'],
     }),
     MongooseModule.forRootAsync({
       imports: [ConfigModule],

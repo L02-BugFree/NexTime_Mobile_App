@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsString, IsNotEmpty, IsArray, IsOptional } from 'class-validator';
+import { IsString, IsNotEmpty, IsArray, IsOptional, IsMongoId } from 'class-validator';
 
 export class CreateGroupDto {
   @ApiProperty({ example: 'Team Alpha' })
@@ -7,8 +7,14 @@ export class CreateGroupDto {
   @IsNotEmpty()
   name!: string;
 
+  @ApiProperty({ example: 'Core backend team' })
+  @IsString()
+  @IsNotEmpty()
+  description!: string;
+
   @ApiProperty({ example: [] })
   @IsArray()
   @IsOptional()
+  @IsMongoId({ each: true })
   members?: string[];
 }

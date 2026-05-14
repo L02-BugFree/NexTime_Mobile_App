@@ -4,7 +4,7 @@ import { Model, Types } from 'mongoose';
 import { User, VisibilitySetting } from './entities/user.schema';
 import { CreateUserDto } from './dto/create-user.dto';
 import * as bcrypt from 'bcryptjs';
-import { v4 as uuidv4 } from 'uuid';
+import { randomUUID } from 'crypto';
 import { MonthlyCalendar } from '../schedule/entities/monthly-calendar.schema';
 import { Group } from '../group/entities/group.schema';
 import { SearchUsersDto } from './dto/search-users.dto';
@@ -30,7 +30,7 @@ export class UserService {
     const userData = {
       ...createUserDto,
       password: hashedPassword,
-      friendCode: createUserDto.friendCode || `NEXTIME_${uuidv4().slice(0, 8).toUpperCase()}`,
+      friendCode: createUserDto.friendCode || `NEXTIME_${randomUUID().slice(0, 8).toUpperCase()}`,
     };
 
     const createdUser = new this.userModel(userData);
@@ -273,9 +273,14 @@ export class UserService {
     const user = await this.userModel.findById(userId).exec();
     if (!user) throw new NotFoundException('User not found');
 
-    return this.userModel
-      .find({ _id: { $in: user.friends || [] } })
+    const populatedUser = await this.userModel
+      .findById(userId)
+      .populate('friends', '_id displayName email avatarUrl')
       .exec();
+
+    if (!populatedUser) throw new NotFoundException('User not found');
+
+    return (populatedUser.friends || []) as unknown as User[];
   }
 
   async listBlockedUsers(userId: string): Promise<User[]> {

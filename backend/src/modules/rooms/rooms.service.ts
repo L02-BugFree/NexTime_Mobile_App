@@ -1,32 +1,68 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 import { CreateRoomDto } from './dto/create-room.dto';
 import { CreateMessageDto } from './dto/create-message.dto';
 import { MessagesQueryDto } from './dto/messages-query.dto';
 import { Room, RoomType } from './entities/room.schema';
 import { Message } from './entities/message.schema';
+import { Group } from '../group/entities/group.schema';
+import { User } from '../user/entities/user.schema';
+import { MonthlyCalendar } from '../schedule/entities/monthly-calendar.schema';
 
+type HeatmapSlot = {
+  date: string;
+  startTime: string;
+  endTime: string;
+  busyCount: number;
+};
 
 @Injectable()
 export class RoomsService {
   constructor(
     @InjectModel(Room.name) private roomModel: Model<Room>,
     @InjectModel(Message.name) private messageModel: Model<Message>,
+    @InjectModel(Group.name) private groupModel: Model<Group>,
+    @InjectModel(User.name) private userModel: Model<User>,
+    @InjectModel(MonthlyCalendar.name) private monthlyCalendarModel: Model<MonthlyCalendar>,
   ) {}
 
   async createRoom(userId: string, dto: CreateRoomDto): Promise<Room> {
-    // basic ownership: ownerId = userId
-    if (dto.type === RoomType.GROUP && !dto.groupId) {
-      throw new BadRequestException('groupId is required for GROUP rooms');
+    if (dto.type === RoomType.GROUP) {
+      if (!dto.groupId) throw new BadRequestException('groupId is required for GROUP rooms');
+      const group = await this.groupModel.findById(dto.groupId).lean().exec();
+      if (!group) throw new NotFoundException('Group not found');
+
+      const isGroupMember = (group.members ?? []).some((memberId) => memberId.toString() === userId);
+      if (!isGroupMember) {
+        throw new ForbiddenException('You must be a member of the group to create a GROUP room');
+      }
+    }
+
+    if (dto.type === RoomType.DIRECT) {
+      if (!dto.userA || !dto.userB) {
+        throw new BadRequestException('DIRECT room requires both userA and userB');
+      }
+      if (dto.userA === dto.userB) {
+        throw new BadRequestException('userA and userB must be different');
+      }
+      if (dto.userA !== userId && dto.userB !== userId) {
+        throw new BadRequestException('DIRECT room must include requester as one participant');
+      }
+    }
+
+    if (dto.type === RoomType.SELF) {
+      if (dto.userA || dto.userB || dto.groupId) {
+        throw new BadRequestException('SELF room does not accept userA/userB/groupId');
+      }
     }
 
     const payload: Partial<Room> = {
       type: dto.type,
-      ownerId: userId as any,
-      userA: dto.userA as any,
-      userB: dto.userB as any,
-      groupId: dto.groupId as any,
+      ownerId: new Types.ObjectId(userId),
+      userA: dto.userA ? new Types.ObjectId(dto.userA) : undefined,
+      userB: dto.userB ? new Types.ObjectId(dto.userB) : undefined,
+      groupId: dto.groupId ? new Types.ObjectId(dto.groupId) : undefined,
     };
 
     const created = new this.roomModel(payload);
@@ -34,26 +70,44 @@ export class RoomsService {
   }
 
   async listRoomsForUser(userId: string): Promise<Room[]> {
-    return this.roomModel.find({ ownerId: userId }).exec();
+    const userObjectId = new Types.ObjectId(userId);
+    const groups = await this.groupModel.find({ members: userObjectId }).select('_id').lean().exec();
+    const groupIds = groups.map((group) => group._id);
+
+    return this.roomModel
+      .find({
+        $or: [
+          { ownerId: userObjectId },
+          { userA: userObjectId },
+          { userB: userObjectId },
+          ...(groupIds.length > 0 ? [{ groupId: { $in: groupIds } }] : []),
+        ],
+      })
+      .sort({ updatedAt: -1 })
+      .exec();
   }
 
-  private async assertRoomOwner(userId: string, roomId: string): Promise<Room> {
+  private async assertRoomMember(userId: string, roomId: string): Promise<Room> {
     const room = await this.roomModel.findById(roomId).exec();
     if (!room) throw new NotFoundException('Room not found');
-    if (room.ownerId.toString() !== userId) throw new ForbiddenException('No access to room');
+
+    const isMember = await this.isUserInRoom(userId, room);
+    if (!isMember) throw new ForbiddenException('No access to room');
+
     return room;
   }
 
   async getMessages(userId: string, roomId: string, query: MessagesQueryDto): Promise<{ items: Message[]; page: number; limit: number }> {
-    await this.assertRoomOwner(userId, roomId);
+    await this.assertRoomMember(userId, roomId);
 
     const limit = query.limit ?? 50;
     const page = query.page ?? 1;
+    const skip = typeof query.skip === 'number' ? query.skip : (page - 1) * limit;
 
     const items = await this.messageModel
       .find({ roomId })
       .sort({ createdAt: -1 })
-      .skip((page - 1) * limit)
+      .skip(skip)
       .limit(limit)
       .exec();
 
@@ -61,98 +115,58 @@ export class RoomsService {
   }
 
   async sendMessage(userId: string, roomId: string, dto: CreateMessageDto): Promise<Message> {
-    await this.assertRoomOwner(userId, roomId);
+    await this.assertRoomMember(userId, roomId);
 
     const created = new this.messageModel({ roomId, senderId: userId, content: dto.content });
-    return created.save();
+    const message = await created.save();
+
+    await this.roomModel.findByIdAndUpdate(roomId, { $set: { updatedAt: new Date() } }).exec();
+
+    return message;
   }
 
-  // --------------------
-  // Heatmap (Sub-phase 1.5)
-  // --------------------
   async getHeatmap(userId: string, roomId: string, month?: string): Promise<any> {
-    const room = await this.roomModel.findById(roomId).exec();
-    if (!room) throw new NotFoundException('Room not found');
+    const room = await this.assertRoomMember(userId, roomId);
 
-    // Access rules: require ownership to keep it consistent with the rest of this repo.
-    // If you later want participant-based access, we can extend this.
-    if (room.ownerId.toString() !== userId) {
-      throw new ForbiddenException('No access to room');
-    }
+    const monthStr = month ?? new Date().toISOString().slice(0, 7);
+    const monthStart = new Date(`${monthStr}-01T00:00:00.000Z`);
+    const monthEnd = new Date(Date.UTC(monthStart.getUTCFullYear(), monthStart.getUTCMonth() + 1, 1));
 
-    // Determine month string
-    const monthStr = month ?? new Date().toISOString().slice(0, 7); // YYYY-MM
+    const memberIds = await this.getRoomMemberIds(room);
 
-    // Resolve members
-    const memberIds: string[] = [];
-    if (room.type === RoomType.SELF) {
-      memberIds.push(room.ownerId.toString());
-    } else if (room.type === RoomType.DIRECT) {
-      const a = room.userA?.toString();
-      const b = room.userB?.toString();
-      if (!a || !b) throw new BadRequestException('DIRECT room must have userA and userB');
-      memberIds.push(a, b);
-
-      // Privacy constraint: if the other user has anonymousOnGroupCalendar: true => forbidden
-      // Need the other user relative to requester.
-      const otherId = room.ownerId.toString() === a ? b : a;
-      // Fetch other user's privacy settings.
-      // Room service only needs a boolean flag; keep this as a direct user-lookup.
-      const otherUser = await this.roomModel.db.collection('users').findOne({
-        _id: new (this.roomModel.db as any).constructor.Types.ObjectId(otherId),
-      });
-
-
-      if (otherUser?.privacySettings?.anonymousOnGroupCalendar) {
-        throw new ForbiddenException('Cannot view heatmap due to privacy settings');
+    if (room.type === RoomType.DIRECT) {
+      const otherUserId = memberIds.find((id) => id !== userId);
+      if (otherUserId) {
+        const otherUser = await this.userModel
+          .findById(otherUserId)
+          .select('privacySettings.anonymousOnGroupCalendar')
+          .lean()
+          .exec();
+        if (otherUser?.privacySettings?.anonymousOnGroupCalendar) {
+          throw new ForbiddenException('Cannot view heatmap due to privacy settings');
+        }
       }
-
-
-
-
-    } else if (room.type === RoomType.GROUP) {
-      // For GROUP rooms, we keep GROUP-level heatmap privacy ignored (requirement).
-      const groupDoc = await this.roomModel.db.collection('groups').findOne({ _id: (room as any).groupId });
-      if (!groupDoc) throw new NotFoundException('Group not found for room');
-      const members = (groupDoc.members || []) as string[];
-      memberIds.push(...members.map((m) => m.toString()));
     }
 
-    // Fetch calendars for all members
-    const monthRegex = `^${monthStr}`;
-    const calendars = await this.roomModel.db.collection('monthlycalendars').find({
-      userId: { $in: memberIds.map((id) => id) },
-      month: { $regex: monthRegex },
-    }).toArray();
+    const calendars = await this.monthlyCalendarModel
+      .find({ userId: { $in: memberIds }, month: monthStr })
+      .lean()
+      .exec();
 
+    const slotMap = this.createMonthSlotMap(monthStart, monthEnd);
 
-    // Aggregate busy counts from eventsInMonth to 30-min slots.
-    // Current schedule service returns already-formed Heatmap response DTO; here we implement a simple one.
-    const slots = new Map<string, { startTime: string; endTime: string; busyCount: number }>();
+    for (const calendar of calendars) {
+      for (const event of calendar.eventsInMonth ?? []) {
+        const baseDate = new Date(event.fullDate);
+        if (Number.isNaN(baseDate.getTime())) continue;
 
-    for (const cal of calendars) {
-      const eventsInMonth = cal.eventsInMonth || [];
-      for (const ev of eventsInMonth) {
-        const start = ev.startTime;
-        const end = ev.endTime;
-        if (!start || !end) continue;
+        const start = this.combineDateAndTimeUtc(baseDate, event.startTime);
+        const end = this.combineDateAndTimeUtc(baseDate, event.endTime);
+        if (!start || !end || start >= end) continue;
 
-        // Step 30 minutes between start and end (ISO times). We treat ev.startTime/endTime as HH:MM.
-        const startDate = new Date(`1970-01-01T${start}:00Z`);
-        const endDate = new Date(`1970-01-01T${end}:00Z`);
-        let cur = new Date(startDate);
-        while (cur < endDate) {
-          const next = new Date(cur.getTime() + 30 * 60 * 1000);
-          const key = `${cur.toISOString().slice(11, 16)}-${next.toISOString().slice(11, 16)}`;
-          const slotStart = cur.toISOString().slice(11, 16);
-          const slotEnd = next.toISOString().slice(11, 16);
-          const existing = slots.get(key);
-          if (existing) {
-            existing.busyCount += 1;
-          } else {
-            slots.set(key, { startTime: slotStart, endTime: slotEnd, busyCount: 1 });
-          }
-          cur = next;
+        for (let cursor = new Date(start); cursor < end; cursor = new Date(cursor.getTime() + 30 * 60 * 1000)) {
+          const slot = slotMap.get(cursor.toISOString());
+          if (slot) slot.busyCount += 1;
         }
       }
     }
@@ -160,8 +174,68 @@ export class RoomsService {
     return {
       roomId: room._id,
       month: monthStr,
-      timeSlots: Array.from(slots.values()).sort((a, b) => a.startTime.localeCompare(b.startTime)),
+      timeSlots: Array.from(slotMap.values()),
     };
+  }
+
+  private async isUserInRoom(userId: string, room: Room): Promise<boolean> {
+    const participantIds = await this.getRoomMemberIds(room);
+    return participantIds.includes(userId);
+  }
+
+  private async getRoomMemberIds(room: Room): Promise<string[]> {
+    if (room.type === RoomType.SELF) {
+      return [room.ownerId.toString()];
+    }
+
+    if (room.type === RoomType.DIRECT) {
+      const userA = room.userA?.toString();
+      const userB = room.userB?.toString();
+      if (!userA || !userB) throw new BadRequestException('DIRECT room is missing participants');
+      return [room.ownerId.toString(), userA, userB].filter((id, index, arr) => arr.indexOf(id) === index);
+    }
+
+    if (!room.groupId) throw new BadRequestException('GROUP room must have groupId');
+    const group = await this.groupModel.findById(room.groupId).lean().exec();
+    if (!group) throw new NotFoundException('Group not found for room');
+
+    const members = (group.members ?? []).map((memberId) => memberId.toString());
+    return [room.ownerId.toString(), ...members].filter((id, index, arr) => arr.indexOf(id) === index);
+  }
+
+  private combineDateAndTimeUtc(baseDate: Date, time: string | undefined): Date | null {
+    if (!time) return null;
+
+    const [hourStr, minuteStr] = time.split(':');
+    const hour = Number(hourStr);
+    const minute = Number(minuteStr);
+    if (!Number.isInteger(hour) || !Number.isInteger(minute)) return null;
+
+    return new Date(Date.UTC(
+      baseDate.getUTCFullYear(),
+      baseDate.getUTCMonth(),
+      baseDate.getUTCDate(),
+      hour,
+      minute,
+      0,
+      0,
+    ));
+  }
+
+  private createMonthSlotMap(monthStart: Date, monthEnd: Date): Map<string, HeatmapSlot> {
+    const slots = new Map<string, HeatmapSlot>();
+
+    for (let cursor = new Date(monthStart); cursor < monthEnd; cursor = new Date(cursor.getTime() + 30 * 60 * 1000)) {
+      const end = new Date(cursor.getTime() + 30 * 60 * 1000);
+      slots.set(cursor.toISOString(), {
+        date: cursor.toISOString().slice(0, 10),
+        startTime: cursor.toISOString().slice(11, 16),
+        endTime: end.toISOString().slice(11, 16),
+        busyCount: 0,
+      });
+    }
+
+    return slots;
   }
 }
 
