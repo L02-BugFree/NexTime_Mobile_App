@@ -18,6 +18,9 @@ export class PollOption {
 
 @Schema({ timestamps: true })
 export class PollVote extends Document {
+  @Prop({ type: Number, required: true })
+  optionIndex!: number;
+
   @Prop({ type: Types.ObjectId, ref: 'User', required: true })
   userId!: Types.ObjectId;
 

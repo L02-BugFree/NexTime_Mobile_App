@@ -35,6 +35,82 @@ export class PollsService {
     await poll.save();
   }
 
+//   async voteAndAutoSchedule(userId: string, pollId: string, dto: VoteDto) {
+//     const poll = await this.pollModel.findById(pollId).exec();
+//     if (!poll) throw new NotFoundException('Poll not found');
+
+//     const option = poll.options[dto.optionIndex];
+//     if (!option) throw new BadRequestException('Invalid optionIndex');
+
+//     // Update votes first
+//     await this.upsertVote(poll, userId, dto.optionIndex, dto.value);
+
+//     const monthStr = new Date().toISOString().slice(0, 7);
+
+//     const calendar = await this.monthlyCalendarModel
+//       .findOne({ userId, month: monthStr })
+//       .exec();
+
+//     // ensure calendar exists
+//     const calendarToUse =
+//       calendar ||
+//       (await this.monthlyCalendarModel
+//         .create({ userId: new Types.ObjectId(userId), month: monthStr, eventsInMonth: [] } as any));
+
+//     // Auto-schedule mapping: we create/delete oneshot events tied to pollId + optionIndex.
+//     const eventMarkerTitle = `POLL_${pollId}_OPTION_${dto.optionIndex}`;
+
+//     if (dto.value === 'YES') {
+//       // create oneshot entry if not exists
+//       const already = calendarToUse.eventsInMonth?.some((e: any) => e.title === eventMarkerTitle);
+//       if (!already) {
+//         const oneshotDate = new Date();
+//         const createdOneShot = await this.oneShotEventModel.create({
+//           title: eventMarkerTitle,
+//           description: 'Auto-scheduled from poll vote',
+//           startTime: option.startTime,
+//           endTime: option.endTime,
+//           date: oneshotDate,
+//           colorHex: '#00C2FF',
+//           tag: 'poll',
+//         } as any);
+
+//         // push to MonthlyCalendar
+//         await this.monthlyCalendarModel.updateOne(
+//           { _id: calendarToUse._id },
+//           {
+//             $addToSet: {
+//               eventsInMonth: {
+//                 // For poll auto-scheduling compliance, mark the originalEventId as the poll option marker.
+//                 originalEventId: new Types.ObjectId(),
+//                 title: createdOneShot.title,
+//                 description: createdOneShot.description,
+// fullDate: (createdOneShot as any).specificDate ?? (createdOneShot as any).date,
+//                 dayOfWeek: oneshotDate.getDay() || 7,
+//                 startTime: createdOneShot.startTime,
+//                 endTime: createdOneShot.endTime,
+//                 colorHex: createdOneShot.colorHex,
+//                 type: 'oneshot',
+//               },
+//             },
+//           },
+//         );
+
+//       }
+//     } else {
+//       // pull matching oneshot entries (by originalEventId)
+//       await this.monthlyCalendarModel.updateOne(
+//         { _id: calendarToUse._id },
+//         { $pull: { eventsInMonth: { title: eventMarkerTitle } } },
+//       );
+
+
+//       // optional: delete OneShotEvent docs could be done, omitted for safety.
+//     }
+
+//     return { message: 'Vote recorded (and auto-scheduling applied where applicable)' };
+//   }
+
   async voteAndAutoSchedule(userId: string, pollId: string, dto: VoteDto) {
     const poll = await this.pollModel.findById(pollId).exec();
     if (!poll) throw new NotFoundException('Poll not found');
@@ -42,73 +118,73 @@ export class PollsService {
     const option = poll.options[dto.optionIndex];
     if (!option) throw new BadRequestException('Invalid optionIndex');
 
-    // Update votes first
+    // 1. Cập nhật vote
     await this.upsertVote(poll, userId, dto.optionIndex, dto.value);
 
+    // 2. Deterministic marker ID (theo spec)
+    const markerId = `POLL_${pollId}_OPT_${dto.optionIndex}`;
     const monthStr = new Date().toISOString().slice(0, 7);
 
-    const calendar = await this.monthlyCalendarModel
-      .findOne({ userId, month: monthStr })
+    // 3. Lấy hoặc tạo calendar của user
+    let calendar = await this.monthlyCalendarModel
+      .findOne({ userId: new Types.ObjectId(userId), month: monthStr })
       .exec();
 
-    // ensure calendar exists
-    const calendarToUse =
-      calendar ||
-      (await this.monthlyCalendarModel
-        .create({ userId: new Types.ObjectId(userId), month: monthStr, eventsInMonth: [] } as any));
-
-    // Auto-schedule mapping: we create/delete oneshot events tied to pollId + optionIndex.
-    const eventMarkerTitle = `POLL_${pollId}_OPTION_${dto.optionIndex}`;
+    if (!calendar) {
+      calendar = await this.monthlyCalendarModel.create({
+        userId: new Types.ObjectId(userId),
+        month: monthStr,
+        eventsInMonth: [],
+      });
+    }
 
     if (dto.value === 'YES') {
-      // create oneshot entry if not exists
-      const already = calendarToUse.eventsInMonth?.some((e: any) => e.title === eventMarkerTitle);
+      // Check trùng lặp theo originalEventId (deterministic)
+      const already = calendar.eventsInMonth?.some(
+        (e: any) => e.originalEventId === markerId
+      );
+
       if (!already) {
+        // Tạo OneShotEvent (có thể bỏ qua nếu không cần lưu riêng)
         const oneshotDate = new Date();
-        const createdOneShot = await this.oneShotEventModel.create({
-          title: eventMarkerTitle,
-          description: 'Auto-scheduled from poll vote',
+        await this.oneShotEventModel.create({
+          title: `Poll Option ${dto.optionIndex + 1}`,
+          description: `Auto-scheduled from poll ${pollId}`,
           startTime: option.startTime,
           endTime: option.endTime,
           date: oneshotDate,
           colorHex: '#00C2FF',
           tag: 'poll',
-        } as any);
+        });
 
-        // push to MonthlyCalendar
+        // Push vào MonthlyCalendar với originalEventId = markerId
         await this.monthlyCalendarModel.updateOne(
-          { _id: calendarToUse._id },
+          { _id: calendar._id },
           {
             $addToSet: {
               eventsInMonth: {
-                // For poll auto-scheduling compliance, mark the originalEventId as the poll option marker.
-                originalEventId: new Types.ObjectId(),
-                title: createdOneShot.title,
-                description: createdOneShot.description,
-fullDate: (createdOneShot as any).specificDate ?? (createdOneShot as any).date,
+                originalEventId: markerId,  // ← deterministic!
+                title: `Poll Option ${dto.optionIndex + 1}`,
+                description: `Auto-scheduled from poll ${pollId}`,
+                fullDate: oneshotDate,
                 dayOfWeek: oneshotDate.getDay() || 7,
-                startTime: createdOneShot.startTime,
-                endTime: createdOneShot.endTime,
-                colorHex: createdOneShot.colorHex,
+                startTime: option.startTime,
+                endTime: option.endTime,
+                colorHex: '#00C2FF',
                 type: 'oneshot',
               },
             },
-          },
+          }
         );
-
       }
     } else {
-      // pull matching oneshot entries (by originalEventId)
+      // NO: Pull theo originalEventId (không dùng title)
       await this.monthlyCalendarModel.updateOne(
-        { _id: calendarToUse._id },
-        { $pull: { eventsInMonth: { title: eventMarkerTitle } } },
+        { _id: calendar._id },
+        { $pull: { eventsInMonth: { originalEventId: markerId } } }
       );
-
-
-      // optional: delete OneShotEvent docs could be done, omitted for safety.
     }
 
-    return { message: 'Vote recorded (and auto-scheduling applied where applicable)' };
+    return { message: 'Vote recorded and schedule updated' };
   }
 }
-
