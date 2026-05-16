@@ -10,4 +10,3 @@ import { Room, RoomSchema } from '../rooms/entities/room.schema';
   providers: [AIService],
 })
 export class AIModule {}
-
