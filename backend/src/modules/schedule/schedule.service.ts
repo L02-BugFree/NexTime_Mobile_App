@@ -143,8 +143,10 @@ export class ScheduleService {
       const now = new Date();
       month = now.toISOString().slice(0,7);
     }
-    const calendar = await this.monthlyCalendarModel.findOne({ userId, month });
-    return calendar ? calendar.eventsInMonth : [];
+    const calendars = await this.monthlyCalendarModel.find({ month }).lean().exec();
+    return calendars
+      .filter((calendar) => calendar.userId.toString() === userId)
+      .flatMap((calendar) => calendar.eventsInMonth ?? []);
   }
 
   private slotsOverlap(start1: Date, end1: Date, start2: Date, end2: Date): boolean {

@@ -1,24 +1,38 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { CreatePollDto } from './dto/create-poll.dto';
 import { VoteDto } from './dto/vote.dto';
 import { Poll, VoteValue } from './entities/poll.schema';
 import { MonthlyCalendar } from '../schedule/entities/monthly-calendar.schema';
-import { OneShotEvent } from '../schedule/entities/one-shot-event.schema';
+import { Room, RoomType } from '../rooms/entities/room.schema';
 
 @Injectable()
 export class PollsService {
   constructor(
     @InjectModel(Poll.name) private pollModel: Model<Poll>,
     @InjectModel(MonthlyCalendar.name) private monthlyCalendarModel: Model<MonthlyCalendar>,
-    @InjectModel(OneShotEvent.name) private oneShotEventModel: Model<OneShotEvent>,
+    @InjectModel(Room.name) private roomModel: Model<Room>,
   ) {}
 
   async createPoll(userId: string, dto: CreatePollDto): Promise<Poll> {
+    const room = await this.roomModel.findById(dto.roomId).lean().exec();
+    if (!room) throw new NotFoundException('Room not found');
+
+    const roomMemberIds = await this.getRoomMemberIds(room);
+    if (!roomMemberIds.includes(userId)) {
+      throw new ForbiddenException('You are not a member of this room');
+    }
+
+    const members = dto.members?.length ? dto.members : [userId];
+    const hasOutsider = members.some((memberId) => !roomMemberIds.includes(memberId));
+    if (hasOutsider) {
+      throw new BadRequestException('Poll members must belong to the room');
+    }
+
     const created = new this.pollModel({
       roomId: dto.roomId,
-      members: dto.members?.length ? dto.members : [userId],
+      members,
       options: dto.options,
       votes: [],
     });
@@ -38,6 +52,9 @@ export class PollsService {
   async voteAndAutoSchedule(userId: string, pollId: string, dto: VoteDto) {
     const poll = await this.pollModel.findById(pollId).exec();
     if (!poll) throw new NotFoundException('Poll not found');
+    if (!(poll.members ?? []).some((memberId) => memberId.toString() === userId)) {
+      throw new ForbiddenException('You are not a member of this poll');
+    }
 
     const option = poll.options[dto.optionIndex];
     if (!option) throw new BadRequestException('Invalid optionIndex');
@@ -46,69 +63,58 @@ export class PollsService {
     await this.upsertVote(poll, userId, dto.optionIndex, dto.value);
 
     const monthStr = new Date().toISOString().slice(0, 7);
-
-    const calendar = await this.monthlyCalendarModel
-      .findOne({ userId, month: monthStr })
-      .exec();
-
-    // ensure calendar exists
-    const calendarToUse =
-      calendar ||
-      (await this.monthlyCalendarModel
-        .create({ userId: new Types.ObjectId(userId), month: monthStr, eventsInMonth: [] } as any));
+    const userObjectId = new Types.ObjectId(userId);
 
     // Auto-schedule mapping: we create/delete oneshot events tied to pollId + optionIndex.
     const eventMarkerTitle = `POLL_${pollId}_OPTION_${dto.optionIndex}`;
+    const fullDate = new Date();
 
     if (dto.value === 'YES') {
-      // create oneshot entry if not exists
-      const already = calendarToUse.eventsInMonth?.some((e: any) => e.title === eventMarkerTitle);
-      if (!already) {
-        const oneshotDate = new Date();
-        const createdOneShot = await this.oneShotEventModel.create({
-          title: eventMarkerTitle,
-          description: 'Auto-scheduled from poll vote',
-          startTime: option.startTime,
-          endTime: option.endTime,
-          date: oneshotDate,
-          colorHex: '#00C2FF',
-          tag: 'poll',
-        } as any);
-
-        // push to MonthlyCalendar
-        await this.monthlyCalendarModel.updateOne(
-          { _id: calendarToUse._id },
-          {
-            $addToSet: {
-              eventsInMonth: {
-                // For poll auto-scheduling compliance, mark the originalEventId as the poll option marker.
-                originalEventId: new Types.ObjectId(),
-                title: createdOneShot.title,
-                description: createdOneShot.description,
-fullDate: (createdOneShot as any).specificDate ?? (createdOneShot as any).date,
-                dayOfWeek: oneshotDate.getDay() || 7,
-                startTime: createdOneShot.startTime,
-                endTime: createdOneShot.endTime,
-                colorHex: createdOneShot.colorHex,
-                type: 'oneshot',
-              },
+      await this.monthlyCalendarModel.updateOne(
+        { userId: userObjectId, month: monthStr },
+        {
+          $setOnInsert: { userId: userObjectId, month: monthStr },
+          $addToSet: {
+            eventsInMonth: {
+              originalEventId: new Types.ObjectId(),
+              title: eventMarkerTitle,
+              description: 'Auto-scheduled from poll vote',
+              fullDate,
+              dayOfWeek: fullDate.getDay() || 7,
+              startTime: option.startTime,
+              endTime: option.endTime,
+              colorHex: '#00C2FF',
+              type: 'oneshot',
             },
           },
-        );
-
-      }
+        },
+        { upsert: true },
+      );
     } else {
-      // pull matching oneshot entries (by originalEventId)
       await this.monthlyCalendarModel.updateOne(
-        { _id: calendarToUse._id },
+        { userId: userObjectId, month: monthStr },
         { $pull: { eventsInMonth: { title: eventMarkerTitle } } },
       );
-
-
-      // optional: delete OneShotEvent docs could be done, omitted for safety.
     }
 
     return { message: 'Vote recorded (and auto-scheduling applied where applicable)' };
+  }
+
+  private async getRoomMemberIds(room: Room | (Room & { _id?: Types.ObjectId })): Promise<string[]> {
+    if (room.type === RoomType.SELF) {
+      return [room.ownerId.toString()];
+    }
+
+    if (room.type === RoomType.DIRECT) {
+      const userA = room.userA?.toString();
+      const userB = room.userB?.toString();
+      if (!userA || !userB) throw new BadRequestException('DIRECT room is missing participants');
+      return [room.ownerId.toString(), userA, userB].filter((id, index, arr) => arr.indexOf(id) === index);
+    }
+
+    const groupRoom = await this.roomModel.populate(room, { path: 'groupId', select: 'members' });
+    const groupMembers = ((groupRoom.groupId as any)?.members ?? []).map((memberId: Types.ObjectId) => memberId.toString());
+    return [room.ownerId.toString(), ...groupMembers].filter((id, index, arr) => arr.indexOf(id) === index);
   }
 }
 

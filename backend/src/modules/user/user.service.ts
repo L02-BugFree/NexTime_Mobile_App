@@ -1,6 +1,6 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import { Model, Types } from 'mongoose';
+import { InjectConnection, InjectModel } from '@nestjs/mongoose';
+import { Connection, Model, Types } from 'mongoose';
 import { User, VisibilitySetting } from './entities/user.schema';
 import { CreateUserDto } from './dto/create-user.dto';
 import * as bcrypt from 'bcryptjs';
@@ -15,6 +15,7 @@ export class UserService {
     @InjectModel(User.name) private userModel: Model<User>,
     @InjectModel(MonthlyCalendar.name) private monthlyCalendarModel: Model<MonthlyCalendar>,
     @InjectModel(Group.name) private groupModel: Model<Group>,
+    @InjectConnection() private connection: Connection,
   ) {}
 
   async create(createUserDto: CreateUserDto): Promise<User> {
@@ -63,6 +64,33 @@ export class UserService {
 
   private toObjectId(id: string): Types.ObjectId {
     return new Types.ObjectId(id);
+  }
+
+  private supportsTransactions(error: unknown): boolean {
+    if (!(error instanceof Error)) return true;
+    return !error.message.includes('Transaction numbers are only allowed on a replica set member or mongos');
+  }
+
+  private async runWithTransactionFallback(
+    transactionalWork: (session: any) => Promise<void>,
+    fallbackWork: () => Promise<void>,
+  ): Promise<void> {
+    const session = await this.connection.startSession();
+    session.startTransaction();
+    try {
+      await transactionalWork(session);
+      await session.commitTransaction();
+      return;
+    } catch (error) {
+      await session.abortTransaction();
+      if (this.supportsTransactions(error)) {
+        throw error;
+      }
+    } finally {
+      session.endSession();
+    }
+
+    await fallbackWork();
   }
 
   async searchUsers(searcherId: string, dto: SearchUsersDto): Promise<User[]> {
@@ -185,22 +213,46 @@ export class UserService {
     if (!hasRequest) throw new NotFoundException('Friend request not found');
 
     // Move requesterId from friendRequests to friends for both users
-    await Promise.all([
-      this.userModel.updateOne(
-        { _id: this.toObjectId(userId) },
-        {
-          $pull: { friendRequests: this.toObjectId(requesterId) },
-          $addToSet: { friends: this.toObjectId(requesterId) },
-        },
-      ),
-      this.userModel.updateOne(
-        { _id: this.toObjectId(requesterId) },
-        {
-          $pull: { friendRequests: this.toObjectId(userId) },
-          $addToSet: { friends: this.toObjectId(userId) },
-        },
-      ),
-    ]);
+    await this.runWithTransactionFallback(
+      async (session) => {
+        await Promise.all([
+          this.userModel.updateOne(
+            { _id: this.toObjectId(userId) },
+            {
+              $pull: { friendRequests: this.toObjectId(requesterId) },
+              $addToSet: { friends: this.toObjectId(requesterId) },
+            },
+            { session },
+          ),
+          this.userModel.updateOne(
+            { _id: this.toObjectId(requesterId) },
+            {
+              $pull: { friendRequests: this.toObjectId(userId) },
+              $addToSet: { friends: this.toObjectId(userId) },
+            },
+            { session },
+          ),
+        ]);
+      },
+      async () => {
+        await Promise.all([
+          this.userModel.updateOne(
+            { _id: this.toObjectId(userId) },
+            {
+              $pull: { friendRequests: this.toObjectId(requesterId) },
+              $addToSet: { friends: this.toObjectId(requesterId) },
+            },
+          ),
+          this.userModel.updateOne(
+            { _id: this.toObjectId(requesterId) },
+            {
+              $pull: { friendRequests: this.toObjectId(userId) },
+              $addToSet: { friends: this.toObjectId(userId) },
+            },
+          ),
+        ]);
+      },
+    );
 
     return { message: 'Friend request accepted' };
   }
@@ -214,16 +266,34 @@ export class UserService {
     ]);
     if (!user || !friend) throw new NotFoundException('User not found');
 
-    await Promise.all([
-      this.userModel.updateOne(
-        { _id: this.toObjectId(userId) },
-        { $pull: { friends: this.toObjectId(friendId) } },
-      ),
-      this.userModel.updateOne(
-        { _id: this.toObjectId(friendId) },
-        { $pull: { friends: this.toObjectId(userId) } },
-      ),
-    ]);
+    await this.runWithTransactionFallback(
+      async (session) => {
+        await Promise.all([
+          this.userModel.updateOne(
+            { _id: this.toObjectId(userId) },
+            { $pull: { friends: this.toObjectId(friendId) } },
+            { session },
+          ),
+          this.userModel.updateOne(
+            { _id: this.toObjectId(friendId) },
+            { $pull: { friends: this.toObjectId(userId) } },
+            { session },
+          ),
+        ]);
+      },
+      async () => {
+        await Promise.all([
+          this.userModel.updateOne(
+            { _id: this.toObjectId(userId) },
+            { $pull: { friends: this.toObjectId(friendId) } },
+          ),
+          this.userModel.updateOne(
+            { _id: this.toObjectId(friendId) },
+            { $pull: { friends: this.toObjectId(userId) } },
+          ),
+        ]);
+      },
+    );
 
     return { message: 'Friend removed' };
   }
@@ -241,30 +311,68 @@ export class UserService {
     // If they were friends, remove from friends arrays
     const isFriend = (requester.friends || []).some((id) => id.toString() === targetUserId);
 
-    await this.userModel.updateOne(
-      { _id: this.toObjectId(requesterId) },
-      {
-        $addToSet: { blockedUsers: this.toObjectId(targetUserId) },
-        ...(isFriend ? { $pull: { friends: this.toObjectId(targetUserId) } } : {}),
-      } as any,
-    );
-
-    // Also remove from target's friends array if needed
-    await this.userModel.updateOne(
-      { _id: this.toObjectId(targetUserId) },
-      {
-        ...(isFriend ? { $pull: { friends: this.toObjectId(requesterId) } } : {}),
-      } as any,
+    await this.runWithTransactionFallback(
+      async (session) => {
+        await Promise.all([
+          this.userModel.updateOne(
+            { _id: this.toObjectId(requesterId) },
+            {
+              $addToSet: { blockedUsers: this.toObjectId(targetUserId) },
+              $pull: {
+                friends: this.toObjectId(targetUserId),
+                friendRequests: this.toObjectId(targetUserId),
+              },
+            },
+            { session },
+          ),
+          this.userModel.updateOne(
+            { _id: this.toObjectId(targetUserId) },
+            {
+              $pull: {
+                friends: this.toObjectId(requesterId),
+                friendRequests: this.toObjectId(requesterId),
+              },
+            },
+            { session },
+          ),
+        ]);
+      },
+      async () => {
+        await Promise.all([
+          this.userModel.updateOne(
+            { _id: this.toObjectId(requesterId) },
+            {
+              $addToSet: { blockedUsers: this.toObjectId(targetUserId) },
+              $pull: {
+                friends: this.toObjectId(targetUserId),
+                friendRequests: this.toObjectId(targetUserId),
+              },
+            },
+          ),
+          this.userModel.updateOne(
+            { _id: this.toObjectId(targetUserId) },
+            {
+              $pull: {
+                friends: this.toObjectId(requesterId),
+                friendRequests: this.toObjectId(requesterId),
+              },
+            },
+          ),
+        ]);
+      },
     );
 
     return { message: 'User blocked' };
   }
 
   async unblockUser(requesterId: string, targetUserId: string): Promise<{ message: string }> {
+    const requester = await this.userModel.findById(requesterId).exec();
+    if (!requester) throw new NotFoundException('User not found');
+
     await this.userModel.updateOne(
       { _id: this.toObjectId(requesterId) },
       { $pull: { blockedUsers: this.toObjectId(targetUserId) } },
-    );
+    ).exec();
 
     return { message: 'User unblocked' };
   }
@@ -289,6 +397,7 @@ export class UserService {
 
     return this.userModel
       .find({ _id: { $in: user.blockedUsers || [] } })
+      .select('_id displayName email avatarUrl')
       .exec();
   }
 

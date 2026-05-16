@@ -49,6 +49,15 @@ export class RoomsService {
       if (dto.userA !== userId && dto.userB !== userId) {
         throw new BadRequestException('DIRECT room must include requester as one participant');
       }
+
+      const [userA, userB] = await Promise.all([
+        this.userModel.findById(dto.userA).select('_id').lean().exec(),
+        this.userModel.findById(dto.userB).select('_id').lean().exec(),
+      ]);
+
+      if (!userA || !userB) {
+        throw new NotFoundException('Both direct participants must exist');
+      }
     }
 
     if (dto.type === RoomType.SELF) {
@@ -105,7 +114,7 @@ export class RoomsService {
     const skip = typeof query.skip === 'number' ? query.skip : (page - 1) * limit;
 
     const items = await this.messageModel
-      .find({ roomId })
+      .find({ roomId: new Types.ObjectId(roomId) })
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit)
@@ -117,7 +126,7 @@ export class RoomsService {
   async sendMessage(userId: string, roomId: string, dto: CreateMessageDto): Promise<Message> {
     await this.assertRoomMember(userId, roomId);
 
-    const created = new this.messageModel({ roomId, senderId: userId, content: dto.content });
+    const created = new this.messageModel({ roomId: new Types.ObjectId(roomId), senderId: new Types.ObjectId(userId), content: dto.content });
     const message = await created.save();
 
     await this.roomModel.findByIdAndUpdate(roomId, { $set: { updatedAt: new Date() } }).exec();
@@ -128,7 +137,7 @@ export class RoomsService {
   async getHeatmap(userId: string, roomId: string, month?: string): Promise<any> {
     const room = await this.assertRoomMember(userId, roomId);
 
-    const monthStr = month ?? new Date().toISOString().slice(0, 7);
+    const monthStr = this.validateMonth(month);
     const monthStart = new Date(`${monthStr}-01T00:00:00.000Z`);
     const monthEnd = new Date(Date.UTC(monthStart.getUTCFullYear(), monthStart.getUTCMonth() + 1, 1));
 
@@ -148,10 +157,12 @@ export class RoomsService {
       }
     }
 
-    const calendars = await this.monthlyCalendarModel
-      .find({ userId: { $in: memberIds }, month: monthStr })
+    const memberIdSet = new Set(memberIds);
+    const calendars = (await this.monthlyCalendarModel
+      .find({ month: monthStr })
       .lean()
-      .exec();
+      .exec())
+      .filter((calendar) => memberIdSet.has(calendar.userId.toString()));
 
     const slotMap = this.createMonthSlotMap(monthStart, monthEnd);
 
@@ -236,6 +247,14 @@ export class RoomsService {
     }
 
     return slots;
+  }
+
+  private validateMonth(month?: string): string {
+    const monthString = month ?? new Date().toISOString().slice(0, 7);
+    if (!/^[0-9]{4}-(0[1-9]|1[0-2])$/.test(monthString)) {
+      throw new BadRequestException('month must be in format YYYY-MM');
+    }
+    return monthString;
   }
 }
 

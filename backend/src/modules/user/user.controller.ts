@@ -1,5 +1,6 @@
 import { BadRequestException, Body, Controller, Delete, Get, Param, Patch, Post, Query, Req, UnauthorizedException, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { Request } from 'express';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { UserService } from './user.service';
 import { CreateUserDto } from './dto/create-user.dto';
@@ -13,6 +14,12 @@ import { FriendRequestDto } from './dto/friend-request.dto';
 import { FriendAcceptDto } from './dto/friend-accept.dto';
 import { BlockDto } from './dto/block.dto';
 
+interface AuthenticatedRequest extends Request {
+  user: {
+    userId: string;
+  };
+}
+
 @ApiTags('users')
 @Controller('users')
 export class UserController {
@@ -23,7 +30,7 @@ export class UserController {
   @ApiOperation({ summary: 'Get current user profile' })
   @ApiBearerAuth()
   @ApiResponse({ status: 200, description: 'User profile returned.' })
-  async getMe(@Req() req: any): Promise<User> {
+  async getMe(@Req() req: AuthenticatedRequest): Promise<User> {
     const user = await this.userService.findById(req.user.userId);
     if (!user) throw new BadRequestException('User not found');
     return user;
@@ -34,7 +41,7 @@ export class UserController {
   @ApiOperation({ summary: 'Update user profile' })
   @ApiBearerAuth()
   @ApiResponse({ status: 200 })
-  async updateProfile(@Req() req: any, @Body() updateDto: UpdateProfileDto): Promise<User> {
+  async updateProfile(@Req() req: AuthenticatedRequest, @Body() updateDto: UpdateProfileDto): Promise<User> {
     return this.userService.update(req.user.userId, updateDto);
   }
 
@@ -43,7 +50,7 @@ export class UserController {
   @ApiOperation({ summary: 'Update privacy settings' })
   @ApiBearerAuth()
   @ApiResponse({ status: 200 })
-  async updatePrivacy(@Req() req: any, @Body() updateDto: UpdatePrivacyDto): Promise<User> {
+  async updatePrivacy(@Req() req: AuthenticatedRequest, @Body() updateDto: UpdatePrivacyDto): Promise<User> {
     const updateData = { privacySettings: updateDto };
     return this.userService.update(req.user.userId, updateData);
   }
@@ -53,7 +60,7 @@ export class UserController {
   @ApiOperation({ summary: 'Update visibility setting' })
   @ApiBearerAuth()
   @ApiResponse({ status: 200 })
-  async updateVisibility(@Req() req: any, @Body() updateDto: UpdateVisibilityDto): Promise<User> {
+  async updateVisibility(@Req() req: AuthenticatedRequest, @Body() updateDto: UpdateVisibilityDto): Promise<User> {
     return this.userService.update(req.user.userId, updateDto);
   }
 
@@ -62,7 +69,7 @@ export class UserController {
   @ApiOperation({ summary: 'Get friendCode for QR code generation' })
   @ApiBearerAuth()
   @ApiResponse({ status: 200 })
-  async getQr(@Req() req: any) {
+  async getQr(@Req() req: AuthenticatedRequest) {
     const user = await this.userService.findById(req.user.userId);
     if (!user) throw new BadRequestException('User not found');
     return { friendCode: user.friendCode };
@@ -73,7 +80,7 @@ export class UserController {
   @ApiOperation({ summary: 'Delete account (hard delete + cascade)' })
   @ApiBearerAuth()
   @ApiResponse({ status: 200, description: 'Account deleted' })
-  async deleteAccount(@Req() req: any, @Body() dto: DeleteAccountDto) {
+  async deleteAccount(@Req() req: AuthenticatedRequest, @Body() dto: DeleteAccountDto) {
     if (dto.confirmationText !== 'confirm-delete-my-account') {
       throw new BadRequestException('Must confirm deletion');
     }
@@ -91,7 +98,7 @@ export class UserController {
   @ApiOperation({ summary: 'Search users with strict visibility filtering' })
   @ApiBearerAuth()
   @ApiResponse({ status: 200, description: 'Users returned.' })
-  async search(@Req() req: any, @Query() query: SearchUsersDto) {
+  async search(@Req() req: AuthenticatedRequest, @Query() query: SearchUsersDto) {
     return this.userService.searchUsers(req.user.userId, query);
   }
 
@@ -100,7 +107,7 @@ export class UserController {
   @ApiOperation({ summary: 'Send friend request' })
   @ApiBearerAuth()
   @ApiResponse({ status: 201, description: 'Friend request sent.' })
-  async requestFriend(@Req() req: any, @Body() dto: FriendRequestDto) {
+  async requestFriend(@Req() req: AuthenticatedRequest, @Body() dto: FriendRequestDto) {
     return this.userService.requestFriend(req.user.userId, dto.targetUserId);
   }
 
@@ -109,7 +116,7 @@ export class UserController {
   @ApiOperation({ summary: 'Accept friend request' })
   @ApiBearerAuth()
   @ApiResponse({ status: 200, description: 'Friend request accepted.' })
-  async acceptFriend(@Req() req: any, @Body() dto: FriendAcceptDto) {
+  async acceptFriend(@Req() req: AuthenticatedRequest, @Body() dto: FriendAcceptDto) {
     return this.userService.acceptFriend(req.user.userId, dto.requesterId);
   }
 
@@ -118,7 +125,7 @@ export class UserController {
   @ApiOperation({ summary: 'Remove friend' })
   @ApiBearerAuth()
   @ApiResponse({ status: 200, description: 'Friend removed.' })
-  async removeFriend(@Req() req: any, @Param('friendId') friendId: string) {
+  async removeFriend(@Req() req: AuthenticatedRequest, @Param('friendId') friendId: string) {
     return this.userService.removeFriend(req.user.userId, friendId);
   }
 
@@ -127,7 +134,7 @@ export class UserController {
   @ApiOperation({ summary: 'Block a user' })
   @ApiBearerAuth()
   @ApiResponse({ status: 201, description: 'User blocked.' })
-  async block(@Req() req: any, @Body() dto: BlockDto) {
+  async block(@Req() req: AuthenticatedRequest, @Body() dto: BlockDto) {
     return this.userService.blockUser(req.user.userId, dto.targetUserId);
   }
 
@@ -136,7 +143,7 @@ export class UserController {
   @ApiOperation({ summary: 'Unblock user' })
   @ApiBearerAuth()
   @ApiResponse({ status: 200, description: 'User unblocked.' })
-  async unblock(@Req() req: any, @Param('targetUserId') targetUserId: string) {
+  async unblock(@Req() req: AuthenticatedRequest, @Param('targetUserId') targetUserId: string) {
     return this.userService.unblockUser(req.user.userId, targetUserId);
   }
 
@@ -145,7 +152,7 @@ export class UserController {
   @ApiOperation({ summary: 'Get friend list' })
   @ApiBearerAuth()
   @ApiResponse({ status: 200 })
-  async listFriends(@Req() req: any) {
+  async listFriends(@Req() req: AuthenticatedRequest) {
     return this.userService.listFriends(req.user.userId);
   }
 
@@ -154,7 +161,7 @@ export class UserController {
   @ApiOperation({ summary: 'Get blocked users' })
   @ApiBearerAuth()
   @ApiResponse({ status: 200 })
-  async listBlocks(@Req() req: any) {
+  async listBlocks(@Req() req: AuthenticatedRequest) {
     return this.userService.listBlockedUsers(req.user.userId);
   }
 }

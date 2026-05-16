@@ -1,4 +1,4 @@
-import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { Group } from './entities/group.schema';
@@ -42,15 +42,16 @@ export class GroupService {
     const isMember = (group.members ?? []).some((memberId) => memberId.toString() === userId);
     if (!isMember) throw new ForbiddenException('You are not a member of this group');
 
-    const monthStr = month ?? new Date().toISOString().slice(0, 7);
+    const monthStr = this.validateMonth(month);
     const monthStart = new Date(`${monthStr}-01T00:00:00.000Z`);
     const monthEnd = new Date(Date.UTC(monthStart.getUTCFullYear(), monthStart.getUTCMonth() + 1, 1));
 
-    const memberIds = (group.members ?? []).map((memberId) => memberId.toString());
-    const calendars = await this.monthlyCalendarModel
-      .find({ userId: { $in: memberIds }, month: monthStr })
+    const memberIds = new Set((group.members ?? []).map((memberId) => memberId.toString()));
+    const calendars = (await this.monthlyCalendarModel
+      .find({ month: monthStr })
       .lean()
-      .exec();
+      .exec())
+      .filter((calendar) => memberIds.has(calendar.userId.toString()));
 
     const slotMap = this.createMonthSlotMap(monthStart, monthEnd);
 
@@ -80,9 +81,17 @@ export class GroupService {
 
   async removeMemberFromAllGroups(userId: string) {
     await this.groupModel.updateMany(
-      { members: userId },
-      { $pull: { members: userId } }
+      { members: new Types.ObjectId(userId) },
+      { $pull: { members: new Types.ObjectId(userId) } }
     );
+  }
+
+  private validateMonth(month?: string): string {
+    const monthString = month ?? new Date().toISOString().slice(0, 7);
+    if (!/^[0-9]{4}-(0[1-9]|1[0-2])$/.test(monthString)) {
+      throw new BadRequestException('month must be in format YYYY-MM');
+    }
+    return monthString;
   }
 
   private combineDateAndTimeUtc(baseDate: Date, time: string | undefined): Date | null {

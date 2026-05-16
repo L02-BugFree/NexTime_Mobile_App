@@ -4,8 +4,8 @@ import { Types } from 'mongoose';
 
 @Schema()
 export class PaymentChecklist extends Checklist {
-  @Prop({ enum: ChecklistType.PAYMENT })
-  type: ChecklistType.PAYMENT = ChecklistType.PAYMENT;
+  @Prop({ type: String, enum: ChecklistType, default: ChecklistType.PAYMENT })
+  type!: ChecklistType;
 
   @Prop({ required: true })
   payee!: string;

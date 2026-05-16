@@ -2,6 +2,10 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getModelToken } from '@nestjs/mongoose';
 import { UserService } from './user.service';
+import { User } from './entities/user.schema';
+import { MonthlyCalendar } from '../schedule/entities/monthly-calendar.schema';
+import { Group } from '../group/entities/group.schema';
+import { getConnectionToken } from '@nestjs/mongoose';
 
 describe('UserService', () => {
   let service: UserService;
@@ -11,7 +15,19 @@ describe('UserService', () => {
       providers: [
         UserService,
         {
-          provide: getModelToken('User'),
+          provide: getModelToken(User.name),
+          useValue: {},
+        },
+        {
+          provide: getModelToken(MonthlyCalendar.name),
+          useValue: {},
+        },
+        {
+          provide: getModelToken(Group.name),
+          useValue: {},
+        },
+        {
+          provide: getConnectionToken(),
           useValue: {},
         },
       ],

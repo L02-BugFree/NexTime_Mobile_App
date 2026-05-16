@@ -1,4 +1,9 @@
 {
+  "scripts": {
+    "mongo:up": "docker compose -f backend/docker-compose.yml up -d mongo",
+    "mongo:down": "docker compose -f backend/docker-compose.yml down",
+    "start:dev": "npm run --prefix backend start:dev"
+  },
   "dependencies": {
     "mongodb": "^7.1.1"
   }
