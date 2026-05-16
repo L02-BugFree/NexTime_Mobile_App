@@ -147,7 +147,7 @@ export class UserService {
     const requesterBlockedTarget = (requester.blockedUsers || []).some((id) => id.toString() === targetUserId);
     const targetBlockedRequester = (target.blockedUsers || []).some((id) => id.toString() === requesterId);
     if (requesterBlockedTarget || targetBlockedRequester) {
-      throw new ConflictException('Cannot send request to a blocked user');
+      throw new BadRequestException('Cannot send request to a blocked user');
     }
 
     // Already friends

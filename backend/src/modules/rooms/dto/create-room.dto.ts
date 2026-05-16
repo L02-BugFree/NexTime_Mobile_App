@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsEnum, IsMongoId, IsOptional, IsString } from 'class-validator';
+import { IsEnum, IsMongoId, IsOptional } from 'class-validator';
 import { RoomType } from '../entities/room.schema';
 
 export class CreateRoomDto {
@@ -21,10 +21,5 @@ export class CreateRoomDto {
   @IsOptional()
   @IsMongoId()
   groupId?: string;
-
-  @ApiProperty({ example: '662f7a2f9c2e4c0012abcd37' })
-  @IsString()
-  // ownerId is taken from req.user.userId in controller; this DTO only validates if client sends it.
-  ownerId!: string;
 }
 

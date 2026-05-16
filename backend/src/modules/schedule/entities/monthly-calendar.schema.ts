@@ -2,8 +2,8 @@ import { Prop, Schema, SchemaFactory, Schema as MongooseSchema } from '@nestjs/m
 import { Document, Types } from 'mongoose';
 
 export class EventInMonth {
-  @Prop({ type: Types.ObjectId, ref: 'Event' })
-  originalEventId!: Types.ObjectId;
+  @Prop({ type: String })
+  originalEventId!: string | Types.ObjectId;
 
   @Prop({ required: true })
   title!: string;

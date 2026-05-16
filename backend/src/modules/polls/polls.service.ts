@@ -148,6 +148,7 @@ export class PollsService {
         // Tạo OneShotEvent (có thể bỏ qua nếu không cần lưu riêng)
         const oneshotDate = new Date();
         await this.oneShotEventModel.create({
+          userId: new Types.ObjectId(userId),
           title: `Poll Option ${dto.optionIndex + 1}`,
           description: `Auto-scheduled from poll ${pollId}`,
           startTime: option.startTime,
