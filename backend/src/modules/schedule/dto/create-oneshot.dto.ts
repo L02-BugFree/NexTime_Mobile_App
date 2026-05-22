@@ -31,5 +31,6 @@ export class CreateOneshotDto {
 
   @ApiProperty({ example: 'health' })
   @IsString()
-  tag!: string;
+  @IsOptional()
+  tag?: string;
 }

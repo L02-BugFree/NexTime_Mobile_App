@@ -25,6 +25,10 @@ export class PollsService {
     return created.save();
   }
 
+  async findAll(userId: string): Promise<Poll[]> {
+    return this.pollModel.find({ members: userId }).exec();
+  }
+
   private async upsertVote(poll: Poll, userId: string, optionIndex: number, value: VoteValue) {
     const idx = poll.votes.findIndex((v) => v.userId.toString() === userId && v.optionIndex === optionIndex);
     if (idx >= 0) {

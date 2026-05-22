@@ -83,7 +83,7 @@ export class RoomsService {
     const groups = await this.groupModel.find({ members: userObjectId }).select('_id').lean().exec();
     const groupIds = groups.map((group) => group._id);
 
-    return this.roomModel
+    const rooms = await this.roomModel
       .find({
         $or: [
           { ownerId: userObjectId },
@@ -93,7 +93,34 @@ export class RoomsService {
         ],
       })
       .sort({ updatedAt: -1 })
+      .lean()
       .exec();
+
+    const result = await Promise.all(
+      rooms.map(async (room: any) => {
+        let name = 'Cuộc trò chuyện';
+        if (room.type === RoomType.DIRECT) {
+          const otherUserId = room.userA?.toString() === userId ? room.userB : room.userA;
+          if (otherUserId) {
+            const otherUser = await this.userModel.findById(otherUserId).select('displayName').lean().exec();
+            if (otherUser?.displayName) name = otherUser.displayName;
+          }
+        } else if (room.type === RoomType.GROUP && room.groupId) {
+          const group = await this.groupModel.findById(room.groupId).select('name').lean().exec();
+          if (group?.name) name = group.name;
+        } else if (room.type === RoomType.SELF) {
+          name = 'Ghi chú cá nhân';
+        }
+
+        return {
+          ...room,
+          id: room._id.toString(),
+          name,
+        };
+      })
+    );
+
+    return result as any;
   }
 
   private async assertRoomMember(userId: string, roomId: string): Promise<Room> {
