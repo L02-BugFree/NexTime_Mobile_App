@@ -10,6 +10,7 @@ import { RootStackParamList } from '../../navigation/AppNavigator';
 import { getMe } from '../../services/authService';
 import { logout } from '../../services/authService';
 import { User } from '../../types';
+import { ConfirmModal } from '../../components';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
@@ -27,26 +28,29 @@ export const ProfileScreen: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [loggingOut, setLoggingOut] = useState(false);
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
 
   useEffect(() => {
     getMe().then(setUser).catch(() => {}).finally(() => setLoading(false));
   }, []);
 
   const handleLogout = () => {
-    Alert.alert('Đăng xuất', 'Bạn chắc chắn muốn đăng xuất?', [
-      { text: 'Huỷ', style: 'cancel' },
-      {
-        text: 'Đăng xuất', style: 'destructive', onPress: async () => {
-          try {
-            setLoggingOut(true);
-            await logout();
-            navigation.reset({ index: 0, routes: [{ name: 'Landing' }] });
-          } catch {
-            navigation.reset({ index: 0, routes: [{ name: 'Landing' }] });
-          }
-        }
-      }
-    ]);
+    setShowLogoutModal(true);
+  };
+
+  const confirmLogout = async () => {
+    try {
+      setLoggingOut(true);
+      await logout();
+      setShowLogoutModal(false);
+      navigation.reset({ index: 0, routes: [{ name: 'Landing' }] });
+    } catch (error) {
+      console.error('Lỗi khi đăng xuất:', error);
+      setShowLogoutModal(false);
+      navigation.reset({ index: 0, routes: [{ name: 'Landing' }] });
+    } finally {
+      setLoggingOut(false);
+    }
   };
 
   const initials = (name: string) =>
@@ -132,6 +136,17 @@ export const ProfileScreen: React.FC = () => {
           </View>
         </ScrollView>
       </View>
+      <ConfirmModal
+        visible={showLogoutModal}
+        title="Đăng xuất"
+        message="Bạn chắc chắn muốn đăng xuất?"
+        confirmText="Đăng xuất"
+        cancelText="Huỷ"
+        type="danger"
+        loading={loggingOut}
+        onConfirm={confirmLogout}
+        onCancel={() => setShowLogoutModal(false)}
+      />
     </SafeAreaView>
   );
 };
