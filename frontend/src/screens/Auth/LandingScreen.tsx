@@ -42,7 +42,7 @@ export const LandingScreen: React.FC = () => {
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="light-content" />
-      <LinearGradient colors={['#0F172A', '#1E3A8A', '#3B82F6']} style={styles.gradient} start={{x: 0, y: 0}} end={{x: 1, y: 1}}>
+      <LinearGradient colors={['#0F172A', '#1E3A8A', '#3B82F6']} style={styles.gradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
         {/* Logo */}
         <View style={styles.logoContainer}>
           <View style={styles.logoBox}>
@@ -140,7 +140,7 @@ const styles = StyleSheet.create({
   slideSubtitle: { fontSize: 16, color: 'rgba(255,255,255,0.8)', textAlign: 'center', lineHeight: 24, paddingHorizontal: 20 },
   dots: { flexDirection: 'row', gap: 8, marginBottom: 40 },
   dot: { height: 6, borderRadius: 3 },
-  dotActive: { width: 28, backgroundColor: '#FFFFFF', shadowColor: '#FFF', shadowOffset: {width: 0, height: 0}, shadowOpacity: 0.5, shadowRadius: 5 },
+  dotActive: { width: 28, backgroundColor: '#FFFFFF', shadowColor: '#FFF', shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.5, shadowRadius: 5 },
   dotInactive: { width: 6, backgroundColor: 'rgba(255,255,255,0.3)' },
   buttons: { width: '100%', paddingHorizontal: 28, gap: 16, marginBottom: 40 },
   btnLogin: {
