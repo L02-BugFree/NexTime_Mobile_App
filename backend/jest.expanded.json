@@ -1,0 +1,22 @@
+{
+  "moduleFileExtensions": ["js", "json", "ts"],
+  "rootDir": "src",
+  "testRegex": ".*\\.spec\\.ts$",
+  "transform": {
+    "^.+\\.(t|j)s$": "ts-jest"
+  },
+  "moduleNameMapper": {
+    "^uuid$": "<rootDir>/../test/mocks/uuid.ts"
+  },
+  "collectCoverageFrom": [
+    "modules/auth/auth.service.ts",
+    "modules/checklist/checklist.service.ts",
+    "modules/group/group.service.ts",
+    "modules/rooms/rooms.service.ts",
+    "modules/user/user.service.ts",
+    "modules/schedule/schedule.service.ts",
+    "modules/polls/polls.service.ts"
+  ],
+  "coverageDirectory": "../coverage-expanded",
+  "testEnvironment": "node"
+}
