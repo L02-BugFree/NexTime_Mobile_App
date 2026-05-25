@@ -6,7 +6,8 @@ services:
     env_file:
       - .env
     depends_on:
-      - mongo
+      mongo:
+        condition: service_healthy
 
   mongo:
     image: mongo:7
@@ -15,8 +16,31 @@ services:
     environment:
       MONGO_INITDB_ROOT_USERNAME: root
       MONGO_INITDB_ROOT_PASSWORD: example
+    healthcheck:
+      test:
+        [
+          'CMD-SHELL',
+          "mongosh --quiet --eval \"db.adminCommand('ping').ok\" mongodb://root:example@localhost:27017/admin | grep 1",
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
     volumes:
       - mongo_data:/data/db
+
+  e2e:
+    image: node:20-alpine
+    working_dir: /app
+    profiles: ['test']
+    depends_on:
+      mongo:
+        condition: service_healthy
+    environment:
+      MONGODB_URI: mongodb://root:example@mongo:27017/nextime?authSource=admin
+    volumes:
+      - .:/app
+    command: sh -lc "npm ci && npm run test:e2e -- --runInBand --verbose"
 
 volumes:
   mongo_data:
