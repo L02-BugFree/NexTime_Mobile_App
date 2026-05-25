@@ -8,9 +8,12 @@ export enum VisibilitySetting {
 }
 
 export class UpdateVisibilityDto {
-  @ApiProperty({ enum: VisibilitySetting, example: VisibilitySetting.EVERYONE, required: false })
+  @ApiProperty({
+    enum: VisibilitySetting,
+    example: VisibilitySetting.EVERYONE,
+    required: false,
+  })
   @IsEnum(VisibilitySetting)
   @IsOptional()
   visibilitySetting?: VisibilitySetting;
 }
-

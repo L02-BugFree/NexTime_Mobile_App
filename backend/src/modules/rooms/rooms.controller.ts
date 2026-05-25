@@ -1,5 +1,19 @@
-import { Body, Controller, Get, Param, Post, Query, Req, UseGuards } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Post,
+  Query,
+  Req,
+  UseGuards,
+} from '@nestjs/common';
+import {
+  ApiBearerAuth,
+  ApiOperation,
+  ApiResponse,
+  ApiTags,
+} from '@nestjs/swagger';
 import { Request } from 'express';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RoomsService } from './rooms.service';
@@ -52,7 +66,11 @@ export class RoomsController {
   @Post(':roomId/messages')
   @ApiOperation({ summary: 'Send a message' })
   @ApiBearerAuth()
-  async sendMessage(@Req() req: AuthenticatedRequest, @Param('roomId') roomId: string, @Body() dto: CreateMessageDto) {
+  async sendMessage(
+    @Req() req: AuthenticatedRequest,
+    @Param('roomId') roomId: string,
+    @Body() dto: CreateMessageDto,
+  ) {
     return this.roomsService.sendMessage(req.user.userId, roomId, dto);
   }
 
@@ -60,9 +78,11 @@ export class RoomsController {
   @Get(':roomId/heatmap')
   @ApiOperation({ summary: 'Get room heatmap overlay (busy counts)' })
   @ApiBearerAuth()
-  async getHeatmap(@Req() req: AuthenticatedRequest, @Param('roomId') roomId: string, @Query('month') month?: string) {
+  async getHeatmap(
+    @Req() req: AuthenticatedRequest,
+    @Param('roomId') roomId: string,
+    @Query('month') month?: string,
+  ) {
     return this.roomsService.getHeatmap(req.user.userId, roomId, month);
   }
 }
-
-

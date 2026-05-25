@@ -24,4 +24,3 @@ export class MessagesQueryDto {
   @Min(0)
   skip?: number;
 }
-

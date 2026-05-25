@@ -9,9 +9,9 @@ async function bootstrap() {
   // ✅ Thêm CORS config
   app.enableCors({
     origin: [
-      'http://localhost:8081',   // React Native web (Expo default)
-      'http://localhost:3000',   // Local web dev
-      'http://localhost:19006',  // Expo web
+      'http://localhost:8081', // React Native web (Expo default)
+      'http://localhost:3000', // Local web dev
+      'http://localhost:19006', // Expo web
       // Thêm domain production của bạn ở đây
     ],
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
@@ -19,11 +19,13 @@ async function bootstrap() {
     credentials: true,
   });
 
-  app.useGlobalPipes(new ValidationPipe({
-    whitelist: true,
-    transform: true,
-    transformOptions: { enableImplicitConversion: true },
-  }));
+  app.useGlobalPipes(
+    new ValidationPipe({
+      whitelist: true,
+      transform: true,
+      transformOptions: { enableImplicitConversion: true },
+    }),
+  );
 
   const config = new DocumentBuilder()
     .setTitle('NexTime API')

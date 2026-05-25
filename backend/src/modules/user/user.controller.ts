@@ -1,5 +1,23 @@
-import { BadRequestException, Body, Controller, Delete, Get, Param, Patch, Post, Query, Req, UnauthorizedException, UseGuards } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Query,
+  Req,
+  UnauthorizedException,
+  UseGuards,
+} from '@nestjs/common';
+import {
+  ApiBearerAuth,
+  ApiOperation,
+  ApiResponse,
+  ApiTags,
+} from '@nestjs/swagger';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { UserService } from './user.service';
 import { CreateUserDto } from './dto/create-user.dto';
@@ -34,7 +52,10 @@ export class UserController {
   @ApiOperation({ summary: 'Update user profile' })
   @ApiBearerAuth()
   @ApiResponse({ status: 200 })
-  async updateProfile(@Req() req: any, @Body() updateDto: UpdateProfileDto): Promise<User> {
+  async updateProfile(
+    @Req() req: any,
+    @Body() updateDto: UpdateProfileDto,
+  ): Promise<User> {
     return this.userService.update(req.user.userId, updateDto);
   }
 
@@ -43,7 +64,10 @@ export class UserController {
   @ApiOperation({ summary: 'Update privacy settings' })
   @ApiBearerAuth()
   @ApiResponse({ status: 200 })
-  async updatePrivacy(@Req() req: any, @Body() updateDto: UpdatePrivacyDto): Promise<User> {
+  async updatePrivacy(
+    @Req() req: any,
+    @Body() updateDto: UpdatePrivacyDto,
+  ): Promise<User> {
     const updateData = { privacySettings: updateDto };
     return this.userService.update(req.user.userId, updateData);
   }
@@ -53,7 +77,10 @@ export class UserController {
   @ApiOperation({ summary: 'Update visibility setting' })
   @ApiBearerAuth()
   @ApiResponse({ status: 200 })
-  async updateVisibility(@Req() req: any, @Body() updateDto: UpdateVisibilityDto): Promise<User> {
+  async updateVisibility(
+    @Req() req: any,
+    @Body() updateDto: UpdateVisibilityDto,
+  ): Promise<User> {
     return this.userService.update(req.user.userId, updateDto);
   }
 
@@ -158,4 +185,3 @@ export class UserController {
     return this.userService.listBlockedUsers(req.user.userId);
   }
 }
-
