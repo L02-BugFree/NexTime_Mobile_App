@@ -1,10 +1,5 @@
-import { Body, Controller, Param, Post, Req, UseGuards } from '@nestjs/common';
-import {
-  ApiBearerAuth,
-  ApiOperation,
-  ApiResponse,
-  ApiTags,
-} from '@nestjs/swagger';
+import { Body, Controller, Get, Param, Post, Req, UseGuards } from '@nestjs/common';
+import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CreatePollDto } from './dto/create-poll.dto';
 import { VoteDto } from './dto/vote.dto';
@@ -22,6 +17,15 @@ export class PollsController {
   @ApiResponse({ status: 201 })
   async create(@Req() req: any, @Body() dto: CreatePollDto) {
     return this.pollsService.createPoll(req.user.userId, dto);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Get('polls')
+  @ApiOperation({ summary: 'Get all polls' })
+  @ApiBearerAuth()
+  @ApiResponse({ status: 200 })
+  async findAll(@Req() req: any) {
+    return this.pollsService.findAll(req.user.userId);
   }
 
   @UseGuards(JwtAuthGuard)

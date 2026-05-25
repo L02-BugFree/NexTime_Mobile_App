@@ -32,6 +32,10 @@ export class PollsService {
     return created.save();
   }
 
+  async findAll(userId: string): Promise<Poll[]> {
+    return this.pollModel.find({ members: userId }).exec();
+  }
+
   private async upsertVote(
     poll: Poll,
     userId: string,

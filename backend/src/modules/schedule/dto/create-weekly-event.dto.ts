@@ -42,7 +42,8 @@ export class CreateWeeklyEventDto {
 
   @ApiProperty({ example: 'work' })
   @IsString()
-  tag!: string;
+  @IsOptional()
+  tag?: string;
 
   @ApiProperty({ example: 15, description: 'Minutes before to remind' })
   @IsOptional()
