@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "NexTime_Frontend",
-    "slug": "NexTime_Frontend",
+    "name": "NexTime",
+    "slug": "nextime",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -29,7 +29,7 @@
     },
     "extra": {
       "eas": {
-        "projectId": "23595932-62d0-4f45-823c-7aa2b79807cc"
+        "projectId": "917f5bf6-c460-4088-b186-9ef8fd96ba93"
       }
     },
     "plugins": [
@@ -43,6 +43,7 @@
           "organization": "nextime-97"
         }
       ]
-    ]
+    ],
+    "owner": "adykwee"
   }
 }
