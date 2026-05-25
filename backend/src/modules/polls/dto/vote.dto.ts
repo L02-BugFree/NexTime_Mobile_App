@@ -11,4 +11,3 @@ export class VoteDto {
   @IsIn(['YES', 'NO'])
   value!: 'YES' | 'NO';
 }
-

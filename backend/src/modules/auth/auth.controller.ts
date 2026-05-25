@@ -1,16 +1,38 @@
-import { Controller, Post, Body, UsePipes, ValidationPipe, Headers, UnauthorizedException } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
+import {
+  Controller,
+  Post,
+  Body,
+  UsePipes,
+  ValidationPipe,
+  Headers,
+  UnauthorizedException,
+  UseGuards,
+  Req,
+} from '@nestjs/common';
+
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiBearerAuth,
+} from '@nestjs/swagger';
 import { AuthService } from './auth.service';
+
 import { LoginDto } from './dto/login.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
+import { GoogleLoginDto } from './dto/google-login.dto';
 import { UserService } from '../user/user.service';
 import { CreateUserDto } from '../user/dto/create-user.dto';
+import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 
 @ApiTags('auth')
 @Controller('auth')
 export class AuthController {
-  constructor(private authService: AuthService, private userService: UserService) {}
+  constructor(
+    private authService: AuthService,
+    private userService: UserService,
+  ) {}
 
   @Post('register')
   @ApiOperation({ summary: 'Register new user' })
@@ -21,12 +43,15 @@ export class AuthController {
     return result;
   }
 
-@Post('login')
+  @Post('login')
   @ApiOperation({ summary: 'Login user' })
   @ApiResponse({ status: 200, description: 'Login successful' })
   @ApiResponse({ status: 401, description: 'Invalid credentials' })
   async login(@Body(ValidationPipe) loginDto: LoginDto) {
-    const user = await this.authService.validateUser(loginDto.email, loginDto.password);
+    const user = await this.authService.validateUser(
+      loginDto.email,
+      loginDto.password,
+    );
     if (!user) {
       throw new UnauthorizedException('Invalid credentials');
     }
@@ -34,12 +59,13 @@ export class AuthController {
   }
 
   @Post('google')
-  @ApiOperation({ summary: 'Google OAuth login (stub)' })
+  @ApiOperation({ summary: 'Google OAuth login (Firebase verified idToken)' })
   @ApiResponse({ status: 200 })
-  async googleLogin(@Body() googleToken: any) {
-    // Placeholder for Google verify
-    // const ticket = await client.verifyIdToken({ idToken: googleToken.token, audience: process.env.GOOGLE_CLIENT_ID });
-    return { message: 'Google login stub - integrate Google SDK', user: {} };
+  async googleLogin(
+    @Body(new ValidationPipe({ whitelist: true, transform: true }))
+    dto: GoogleLoginDto,
+  ) {
+    return this.authService.firebaseGoogleLogin(dto.idToken);
   }
 
   @Post('forgot-password')
@@ -57,11 +83,21 @@ export class AuthController {
   }
 
   @Post('logout')
-  @ApiOperation({ summary: 'Logout (blacklist token)' })
+  @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
-  async logout(@Headers('authorization') authHeader: string) {
-    const token = authHeader.replace('Bearer ', '');
-    return this.authService.logout(token);
+  @ApiOperation({ summary: 'User logout and token revocation' })
+  @ApiResponse({
+    status: 200,
+    description: 'Logout successful, token invalidated',
+  })
+  async logout(@Req() req: any) {
+    const authHeader = req.headers.authorization;
+    if (!authHeader) {
+      throw new UnauthorizedException('No authorization header found');
+    }
+
+    const token = authHeader.split(' ')[1];
+    await this.authService.logout(token);
+    return { success: true, message: 'Logout successful' };
   }
 }
-

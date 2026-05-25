@@ -35,7 +35,10 @@ export class User extends Document {
   @Prop({ required: true })
   displayName: string;
 
-  @Prop({ default: 'https://ui-avatars.com/api/?name=User&background=0D8ABC&color=fff&size=128' })
+  @Prop({
+    default:
+      'https://ui-avatars.com/api/?name=User&background=0D8ABC&color=fff&size=128',
+  })
   avatarUrl: string;
 
   @Prop({ required: true, unique: true })
@@ -71,7 +74,11 @@ export class User extends Document {
   @Prop({ type: String, enum: Gender })
   gender?: Gender;
 
-  @Prop({ type: String, enum: VisibilitySetting, default: VisibilitySetting.EVERYONE })
+  @Prop({
+    type: String,
+    enum: VisibilitySetting,
+    default: VisibilitySetting.EVERYONE,
+  })
   visibilitySetting: VisibilitySetting;
 
   @Prop({ type: [{ type: Types.ObjectId, ref: 'User' }], default: [] })
@@ -91,4 +98,3 @@ export class User extends Document {
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);
-

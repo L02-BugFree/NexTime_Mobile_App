@@ -3,7 +3,12 @@ import { ChecklistService } from './checklist.service';
 import { PreviewChecklistDto } from './dto/preview-checklist.dto';
 import { ConfirmChecklistDto } from './dto/confirm-checklist.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
-import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiOperation,
+  ApiResponse,
+  ApiTags,
+} from '@nestjs/swagger';
 
 @ApiTags('checklists')
 @Controller('checklists')
@@ -12,7 +17,10 @@ export class ChecklistController {
 
   @Post('preview')
   @ApiOperation({ summary: 'Preview a checklist based on the provided prompt' })
-  @ApiResponse({ status: 200, description: 'Checklist preview generated successfully' })
+  @ApiResponse({
+    status: 200,
+    description: 'Checklist preview generated successfully',
+  })
   async preview(@Body() dto: PreviewChecklistDto) {
     return this.checklistService.preview(dto.prompt);
   }
@@ -31,7 +39,10 @@ export class ChecklistController {
   @Get()
   @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Get all checklists' })
-  @ApiResponse({ status: 200, description: 'Checklists retrieved successfully' })
+  @ApiResponse({
+    status: 200,
+    description: 'Checklists retrieved successfully',
+  })
   @ApiBearerAuth()
   async getAll(@Req() req) {
     const userId = req.user?.userId;

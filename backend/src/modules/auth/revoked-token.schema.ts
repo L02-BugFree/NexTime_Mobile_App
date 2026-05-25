@@ -8,4 +8,3 @@ export class RevokedToken extends Document {
 }
 
 export const RevokedTokenSchema = SchemaFactory.createForClass(RevokedToken);
-

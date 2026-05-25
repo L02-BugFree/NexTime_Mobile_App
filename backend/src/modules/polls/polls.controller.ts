@@ -33,8 +33,11 @@ export class PollsController {
   @ApiOperation({ summary: 'Vote YES/NO on a time option' })
   @ApiBearerAuth()
   @ApiResponse({ status: 200 })
-  async vote(@Req() req: any, @Param('pollId') pollId: string, @Body() dto: VoteDto) {
+  async vote(
+    @Req() req: any,
+    @Param('pollId') pollId: string,
+    @Body() dto: VoteDto,
+  ) {
     return this.pollsService.voteAndAutoSchedule(req.user.userId, pollId, dto);
   }
 }
-

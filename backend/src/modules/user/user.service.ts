@@ -1,10 +1,15 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { User, VisibilitySetting } from './entities/user.schema';
 import { CreateUserDto } from './dto/create-user.dto';
 import * as bcrypt from 'bcryptjs';
-import { v4 as uuidv4 } from 'uuid';
+
 import { MonthlyCalendar } from '../schedule/entities/monthly-calendar.schema';
 import { Group } from '../group/entities/group.schema';
 import { SearchUsersDto } from './dto/search-users.dto';
@@ -13,24 +18,34 @@ import { SearchUsersDto } from './dto/search-users.dto';
 export class UserService {
   constructor(
     @InjectModel(User.name) private userModel: Model<User>,
-    @InjectModel(MonthlyCalendar.name) private monthlyCalendarModel: Model<MonthlyCalendar>,
+    @InjectModel(MonthlyCalendar.name)
+    private monthlyCalendarModel: Model<MonthlyCalendar>,
     @InjectModel(Group.name) private groupModel: Model<Group>,
   ) {}
 
   async create(createUserDto: CreateUserDto): Promise<User> {
-    const existingEmail = await this.userModel.findOne({ email: createUserDto.email });
+    const existingEmail = await this.userModel.findOne({
+      email: createUserDto.email,
+    });
     if (existingEmail) throw new ConflictException('Email already exists');
 
-    const existingCode = await this.userModel.findOne({ friendCode: createUserDto.friendCode });
+    const existingCode = await this.userModel.findOne({
+      friendCode: createUserDto.friendCode,
+    });
     if (existingCode) throw new ConflictException('Friend code already taken');
 
     const saltRounds = 10;
-    const hashedPassword = await bcrypt.hash(createUserDto.password, saltRounds);
+    const hashedPassword = await bcrypt.hash(
+      createUserDto.password,
+      saltRounds,
+    );
 
     const userData = {
       ...createUserDto,
       password: hashedPassword,
-      friendCode: createUserDto.friendCode || `NEXTIME_${uuidv4().slice(0, 8).toUpperCase()}`,
+      friendCode:
+        createUserDto.friendCode ||
+        `NEXTIME_${require('crypto').randomUUID().slice(0, 8).toUpperCase()}`,
     };
 
     const createdUser = new this.userModel(userData);
@@ -38,17 +53,22 @@ export class UserService {
   }
 
   async findByEmail(email: string): Promise<User | undefined> {
-    const user = await this.userModel.findOne({ email }).select('+password').exec();
+    const user = await this.userModel
+      .findOne({ email })
+      .select('+password')
+      .exec();
     return user as User | undefined;
   }
 
   async findById(id: string): Promise<User | undefined> {
-    const user = await this.userModel.findById(id).exec();
+    const user = await this.userModel.findById(id).select('-password').exec();
     return user as User | undefined;
   }
 
   async update(id: string, updateData: any): Promise<User> {
-    const user = await this.userModel.findByIdAndUpdate(id, updateData, { new: true }).exec();
+    const user = await this.userModel
+      .findByIdAndUpdate(id, updateData, { new: true })
+      .exec();
     return user!;
   }
 
@@ -72,13 +92,17 @@ export class UserService {
     const searcher = await this.userModel.findById(searcherId).exec();
     if (!searcher) throw new NotFoundException('Searching user not found');
 
-    const blockedBySearcher = new Set((searcher.blockedUsers || []).map((x) => x.toString()));
+    const blockedBySearcher = new Set(
+      (searcher.blockedUsers || []).map((x) => x.toString()),
+    );
 
     const usersBlockingSearcher = await this.userModel
       .find({ blockedUsers: this.toObjectId(searcherId) })
       .select('_id blockedUsers')
       .exec();
-    const blockedByOthers = new Set(usersBlockingSearcher.map((u) => u._id.toString()));
+    const blockedByOthers = new Set(
+      usersBlockingSearcher.map((u) => u._id.toString()),
+    );
 
     const q = query;
     const isExactEmailMatch = (u: User) => u.email === q;
@@ -90,7 +114,9 @@ export class UserService {
       })
       .exec();
 
-    const searcherFriends = new Set((searcher.friends || []).map((x) => x.toString()));
+    const searcherFriends = new Set(
+      (searcher.friends || []).map((x) => x.toString()),
+    );
 
     const results: User[] = [];
 
@@ -102,7 +128,8 @@ export class UserService {
       if (blockedByOthers.has(candidateId)) continue;
 
       const exactEmailMatch = isExactEmailMatch(candidate);
-      const visibility = (candidate.visibilitySetting as VisibilitySetting) || VisibilitySetting.EVERYONE;
+      const visibility =
+        candidate.visibilitySetting || VisibilitySetting.EVERYONE;
 
       if (visibility === VisibilitySetting.EVERYONE) {
         results.push(candidate);
@@ -120,7 +147,9 @@ export class UserService {
           continue;
         }
 
-        const candidateFriends = new Set((candidate.friends || []).map((x) => x.toString()));
+        const candidateFriends = new Set(
+          (candidate.friends || []).map((x) => x.toString()),
+        );
         let hasMutual = false;
         for (const f of searcherFriends) {
           if (candidateFriends.has(f)) {
@@ -136,26 +165,39 @@ export class UserService {
     return results;
   }
 
-  async requestFriend(requesterId: string, targetUserId: string): Promise<{ message: string }> {
-    if (requesterId === targetUserId) throw new BadRequestException('Cannot friend yourself');
+  async requestFriend(
+    requesterId: string,
+    targetUserId: string,
+  ): Promise<{ message: string }> {
+    if (requesterId === targetUserId)
+      throw new BadRequestException('Cannot friend yourself');
 
     const requester = await this.userModel.findById(requesterId).exec();
     const target = await this.userModel.findById(targetUserId).exec();
     if (!requester || !target) throw new NotFoundException('User not found');
 
     // Fail if either side has blocked relationship
-    const requesterBlockedTarget = (requester.blockedUsers || []).some((id) => id.toString() === targetUserId);
-    const targetBlockedRequester = (target.blockedUsers || []).some((id) => id.toString() === requesterId);
+    const requesterBlockedTarget = (requester.blockedUsers || []).some(
+      (id) => id.toString() === targetUserId,
+    );
+    const targetBlockedRequester = (target.blockedUsers || []).some(
+      (id) => id.toString() === requesterId,
+    );
     if (requesterBlockedTarget || targetBlockedRequester) {
       throw new BadRequestException('Cannot send request to a blocked user');
     }
 
     // Already friends
-    const alreadyFriends = (requester.friends || []).some((id) => id.toString() === targetUserId);
-    if (alreadyFriends) throw new ConflictException('Users are already friends');
+    const alreadyFriends = (requester.friends || []).some(
+      (id) => id.toString() === targetUserId,
+    );
+    if (alreadyFriends)
+      throw new ConflictException('Users are already friends');
 
     // Push request if not exists
-    const alreadyRequested = (target.friendRequests || []).some((id) => id.toString() === requesterId);
+    const alreadyRequested = (target.friendRequests || []).some(
+      (id) => id.toString() === requesterId,
+    );
     if (!alreadyRequested) {
       await this.userModel.updateOne(
         { _id: this.toObjectId(targetUserId) },
@@ -166,8 +208,12 @@ export class UserService {
     return { message: 'Friend request sent' };
   }
 
-  async acceptFriend(userId: string, requesterId: string): Promise<{ message: string }> {
-    if (userId === requesterId) throw new BadRequestException('Invalid requester');
+  async acceptFriend(
+    userId: string,
+    requesterId: string,
+  ): Promise<{ message: string }> {
+    if (userId === requesterId)
+      throw new BadRequestException('Invalid requester');
 
     const [user, requester] = await Promise.all([
       this.userModel.findById(userId).exec(),
@@ -177,11 +223,17 @@ export class UserService {
     if (!user || !requester) throw new NotFoundException('User not found');
 
     // Fail if either side blocks relationship
-    const blocked = (user.blockedUsers || []).some((id) => id.toString() === requesterId) ||
+    const blocked =
+      (user.blockedUsers || []).some((id) => id.toString() === requesterId) ||
       (requester.blockedUsers || []).some((id) => id.toString() === userId);
-    if (blocked) throw new ConflictException('Cannot accept request due to block relationship');
+    if (blocked)
+      throw new ConflictException(
+        'Cannot accept request due to block relationship',
+      );
 
-    const hasRequest = (user.friendRequests || []).some((id) => id.toString() === requesterId);
+    const hasRequest = (user.friendRequests || []).some(
+      (id) => id.toString() === requesterId,
+    );
     if (!hasRequest) throw new NotFoundException('Friend request not found');
 
     // Move requesterId from friendRequests to friends for both users
@@ -205,7 +257,10 @@ export class UserService {
     return { message: 'Friend request accepted' };
   }
 
-  async removeFriend(userId: string, friendId: string): Promise<{ message: string }> {
+  async removeFriend(
+    userId: string,
+    friendId: string,
+  ): Promise<{ message: string }> {
     if (userId === friendId) throw new BadRequestException('Invalid friend');
 
     const [user, friend] = await Promise.all([
@@ -339,15 +394,25 @@ export class UserService {
 
     // CRITICAL: keep cascade logic fixed earlier
     await this.monthlyCalendarModel.deleteMany({ userId });
-    await this.groupModel.updateMany({ members: userId }, { $pull: { members: userId } });
+    await this.groupModel.updateMany(
+      { members: userId },
+      { $pull: { members: userId } },
+    );
 
     // Cascade cleanup for rooms (remove any DIRECT participation)
     // 1) Delete rooms owned by the user.
-    await this.groupModel.db.collection('rooms').deleteMany({ ownerId: new Types.ObjectId(userId) });
+    await this.groupModel.db
+      .collection('rooms')
+      .deleteMany({ ownerId: new Types.ObjectId(userId) });
 
     // 2) Pull user from DIRECT participants.
     await this.groupModel.db.collection('rooms').updateMany(
-      { $or: [{ userA: new Types.ObjectId(userId) }, { userB: new Types.ObjectId(userId) }] },
+      {
+        $or: [
+          { userA: new Types.ObjectId(userId) },
+          { userB: new Types.ObjectId(userId) },
+        ],
+      },
       {
         $pull: {
           userA: new Types.ObjectId(userId),
@@ -356,23 +421,18 @@ export class UserService {
       } as any,
     );
 
-
     // 3) Remove from GROUP members arrays inside rooms (if stored there).
-    await this.groupModel.db.collection('rooms').updateMany(
-      {},
-      { $pull: { members: new Types.ObjectId(userId) } } as any,
-    );
-
-
-
-
-
-
+    await this.groupModel.db.collection('rooms').updateMany({}, {
+      $pull: { members: new Types.ObjectId(userId) },
+    } as any);
 
     const deletedUser = await this.userModel.findByIdAndDelete(userId);
-    if (!deletedUser) throw new NotFoundException('User not found or already deleted');
+    if (!deletedUser)
+      throw new NotFoundException('User not found or already deleted');
 
-    return { message: 'Account deleted successfully (monthly calendars & groups cleaned)' };
+    return {
+      message:
+        'Account deleted successfully (monthly calendars & groups cleaned)',
+    };
   }
 }
-

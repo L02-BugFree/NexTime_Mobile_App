@@ -6,4 +6,3 @@ export class FriendRequestDto {
   @IsMongoId()
   targetUserId!: string;
 }
-

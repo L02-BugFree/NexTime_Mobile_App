@@ -1,5 +1,12 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsString, IsNotEmpty, IsDateString, IsOptional, IsHexColor, IsEnum } from 'class-validator';
+import {
+  IsString,
+  IsNotEmpty,
+  IsDateString,
+  IsOptional,
+  IsHexColor,
+  IsEnum,
+} from 'class-validator';
 
 export class CreateOneshotDto {
   @ApiProperty({ example: 'Doctor Appointment' })

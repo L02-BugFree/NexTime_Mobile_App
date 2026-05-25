@@ -7,4 +7,3 @@ export class SearchUsersDto {
   @IsString()
   query?: string;
 }
-

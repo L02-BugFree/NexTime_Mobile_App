@@ -36,19 +36,32 @@ export class Poll extends Document {
   @Prop({ type: [{ type: Types.ObjectId, ref: 'User' }], default: [] })
   members!: Types.ObjectId[];
 
-  @Prop({ type: [{
-    startTime: { type: String, required: true },
-    endTime: { type: String, required: true },
-  }], default: [] })
+  @Prop({
+    type: [
+      {
+        startTime: { type: String, required: true },
+        endTime: { type: String, required: true },
+      },
+    ],
+    default: [],
+  })
   options!: Array<{ startTime: string; endTime: string }>;
 
-  @Prop({ type: [{
-    optionIndex: { type: Number, required: true },
-    userId: { type: Types.ObjectId, ref: 'User', required: true },
-    value: { type: String, enum: ['YES', 'NO'], required: true },
-  }], default: [] })
-  votes!: Array<{ optionIndex: number; userId: Types.ObjectId; value: VoteValue }>;
+  @Prop({
+    type: [
+      {
+        optionIndex: { type: Number, required: true },
+        userId: { type: Types.ObjectId, ref: 'User', required: true },
+        value: { type: String, enum: ['YES', 'NO'], required: true },
+      },
+    ],
+    default: [],
+  })
+  votes!: Array<{
+    optionIndex: number;
+    userId: Types.ObjectId;
+    value: VoteValue;
+  }>;
 }
 
 export const PollSchema = SchemaFactory.createForClass(Poll);
-
