@@ -20,4 +20,3 @@ export class TimeSlot extends Document {
 }
 
 export const TimeSlotSchema = SchemaFactory.createForClass(TimeSlot);
-

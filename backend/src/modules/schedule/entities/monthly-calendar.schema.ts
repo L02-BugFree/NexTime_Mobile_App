@@ -1,4 +1,9 @@
-import { Prop, Schema, SchemaFactory, Schema as MongooseSchema } from '@nestjs/mongoose';
+import {
+  Prop,
+  Schema,
+  SchemaFactory,
+  Schema as MongooseSchema,
+} from '@nestjs/mongoose';
 import { Document, Types } from 'mongoose';
 
 export class EventInMonth {
@@ -42,4 +47,5 @@ export class MonthlyCalendar extends Document {
   eventsInMonth!: EventInMonth[];
 }
 
-export const MonthlyCalendarSchema = SchemaFactory.createForClass(MonthlyCalendar);
+export const MonthlyCalendarSchema =
+  SchemaFactory.createForClass(MonthlyCalendar);

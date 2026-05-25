@@ -1,14 +1,12 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Types } from 'mongoose';
 
-
-
-@Schema({ 
-  timestamps: true, 
+@Schema({
+  timestamps: true,
   discriminatorKey: 'type',
-  collection: 'events'
+  collection: 'events',
 })
-export class Event extends Document { 
+export class Event extends Document {
   @Prop({ required: true })
   title!: string;
 

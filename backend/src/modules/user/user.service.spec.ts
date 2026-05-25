@@ -31,5 +31,3 @@ describe('UserService', () => {
     expect(service).toBeDefined();
   });
 });
-
-

@@ -17,4 +17,3 @@ export class UpdatePrivacyDto {
   @IsOptional()
   anonymousOnGroupCalendar?: boolean;
 }
-

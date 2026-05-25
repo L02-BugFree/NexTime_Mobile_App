@@ -7,4 +7,3 @@ export class DeleteAccountDto {
   @IsOptional()
   confirmationText?: string;
 }
-

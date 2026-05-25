@@ -6,7 +6,10 @@ import { Room, RoomSchema } from './entities/room.schema';
 import { Message, MessageSchema } from './entities/message.schema';
 import { Group, GroupSchema } from '../group/entities/group.schema';
 import { User, UserSchema } from '../user/entities/user.schema';
-import { MonthlyCalendar, MonthlyCalendarSchema } from '../schedule/entities/monthly-calendar.schema';
+import {
+  MonthlyCalendar,
+  MonthlyCalendarSchema,
+} from '../schedule/entities/monthly-calendar.schema';
 
 @Module({
   imports: [
@@ -23,4 +26,3 @@ import { MonthlyCalendar, MonthlyCalendarSchema } from '../schedule/entities/mon
   exports: [RoomsService],
 })
 export class RoomsModule {}
-

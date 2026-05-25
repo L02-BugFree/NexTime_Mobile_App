@@ -18,4 +18,3 @@ export class HeatmapResponse {
   @ApiProperty({ type: TimeSlotResponse, isArray: true })
   slots!: TimeSlotResponse[];
 }
-

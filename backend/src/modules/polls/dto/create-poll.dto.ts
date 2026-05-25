@@ -1,5 +1,13 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsArray, IsIn, IsMongoId, IsNotEmpty, IsOptional, IsString, ValidateNested } from 'class-validator';
+import {
+  IsArray,
+  IsIn,
+  IsMongoId,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  ValidateNested,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 
 class PollOptionDto {
@@ -19,7 +27,10 @@ export class CreatePollDto {
   @IsMongoId()
   roomId!: string;
 
-  @ApiPropertyOptional({ type: [String], example: ['662f7a2f9c2e4c0012abcd39'] })
+  @ApiPropertyOptional({
+    type: [String],
+    example: ['662f7a2f9c2e4c0012abcd39'],
+  })
   @IsOptional()
   @IsArray()
   @IsMongoId({ each: true })
@@ -31,4 +42,3 @@ export class CreatePollDto {
   @Type(() => PollOptionDto)
   options!: PollOptionDto[];
 }
-
