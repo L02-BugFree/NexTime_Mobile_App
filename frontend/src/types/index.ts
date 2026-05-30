@@ -6,7 +6,7 @@ export type Language = 'vi' | 'en';
 export type VisibilitySetting = 'everyone' | 'friends' | 'contacts';
 
 export interface User {
-  id: string;
+  _id: string;
   email: string;
   displayName: string;
   avatarUrl?: string;
@@ -171,7 +171,7 @@ export interface CreateRoomRequest {
 }
 
 export interface Message {
-  id: string;
+  _id: string;
   roomId: string;
   senderId: string;
   senderName?: string;

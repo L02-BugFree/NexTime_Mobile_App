@@ -42,6 +42,7 @@ export const FriendsScreen: React.FC = () => {
       setLoading(true);
       const data = await searchUsers(searchQuery.trim());
       setSearchResults(data || []);
+      console.log('Search results:', data);
     } catch (e) {
       console.log('Error searching users', e);
     } finally {
@@ -81,14 +82,14 @@ export const FriendsScreen: React.FC = () => {
         <Text style={s.userName}>{item.displayName || 'Người dùng'}</Text>
         <Text style={s.userEmail}>{item.email}</Text>
       </View>
-      <TouchableOpacity style={s.actionBtnDanger} onPress={() => handleRemoveFriend(item.id, item.displayName || 'Người dùng')}>
+      <TouchableOpacity style={s.actionBtnDanger} onPress={() => handleRemoveFriend(item._id, item.displayName || 'Người dùng')}>
         <Ionicons name="person-remove" size={18} color="#EF4444" />
       </TouchableOpacity>
     </View>
   );
 
   const renderSearchItem = ({ item }: { item: User }) => {
-    const isFriend = friends.some(f => f.id === item.id);
+    const isFriend = friends.some(f => f._id === item._id);
     return (
       <View style={s.userItem}>
         <Avatar size={50} name={item.displayName || item.email || 'U'} />
@@ -97,7 +98,7 @@ export const FriendsScreen: React.FC = () => {
           <Text style={s.userEmail}>{item.email}</Text>
         </View>
         {!isFriend ? (
-          <TouchableOpacity style={s.actionBtnPrimary} onPress={() => handleAddFriend(item.id)}>
+          <TouchableOpacity style={s.actionBtnPrimary} onPress={() => handleAddFriend(item._id)}>
             <Ionicons name="person-add" size={18} color="#FFFFFF" />
           </TouchableOpacity>
         ) : (
@@ -152,7 +153,7 @@ export const FriendsScreen: React.FC = () => {
         ) : tab === 'friends' ? (
           <FlatList
             data={friends}
-            keyExtractor={item => item.id}
+            keyExtractor={item => item._id}
             renderItem={renderFriendItem}
             contentContainerStyle={s.listContent}
             ListEmptyComponent={
@@ -165,7 +166,7 @@ export const FriendsScreen: React.FC = () => {
         ) : (
           <FlatList
             data={searchResults}
-            keyExtractor={item => item.id}
+            keyExtractor={item => item._id}
             renderItem={renderSearchItem}
             contentContainerStyle={s.listContent}
             ListEmptyComponent={
