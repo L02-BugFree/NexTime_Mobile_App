@@ -208,6 +208,19 @@ export class UserService {
     return { message: 'Friend request sent' };
   }
 
+  async getFriendRequests(userId: string): Promise<User[]> {
+    const user = await this.userModel.findById(userId).exec();
+    if (!user) throw new NotFoundException('User not found');
+
+    // Lấy danh sách users đã gửi lời mời đến user hiện tại
+    return this.userModel
+      .find({
+        _id: { $in: user.friendRequests || [] },
+      })
+      .select('-password')
+      .exec();
+  }
+
   async acceptFriend(
     userId: string,
     requesterId: string,

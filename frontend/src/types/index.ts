@@ -62,7 +62,7 @@ export interface UpdateVisibilityRequest {
 }
 
 export interface FriendRequest {
-  id: string;
+  _id: string;
   requesterId: string;
   targetUserId: string;
   status: 'pending' | 'accepted' | 'declined';
@@ -96,14 +96,16 @@ export interface UpdateEventRequest {
   title?: string;
   description?: string;
   date?: string;
+  dayOfWeek?: number;
   startTime?: string;
   endTime?: string;
   colorHex?: string;
   tag?: string;
+  type?: string;
 }
 
 export interface CalendarEvent {
-  id: string;
+  _id: string;
   userId: string;
   title: string;
   description?: string;
@@ -127,7 +129,7 @@ export interface HeatmapData {
 // ─── Checklist & AI-Prompt Types ──────────────────────────────────────────────
 
 export interface ChecklistItem {
-  id: string;
+  _id: string;
   title: string;
   isDone: boolean;
   isChecked?: boolean;
@@ -135,7 +137,7 @@ export interface ChecklistItem {
 }
 
 export interface Checklist {
-  id: string;
+  _id: string;
   title: string;
   items: ChecklistItem[];
   roomId?: string;
@@ -151,7 +153,7 @@ export interface AIPreviewRequest {
 export type RoomType = 'SELF' | 'DIRECT' | 'GROUP';
 
 export interface Room {
-  id: string;
+  _id: string;
   type: RoomType;
   ownerId: string;
   userA?: string;
@@ -196,7 +198,7 @@ export interface PollOption {
 }
 
 export interface Poll {
-  id: string;
+  _id: string;
   roomId: string;
   createdBy: string;
   options: PollOption[];

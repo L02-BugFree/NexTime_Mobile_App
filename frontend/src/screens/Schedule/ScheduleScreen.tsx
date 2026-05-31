@@ -4,7 +4,7 @@ import {
   Modal, TextInput, ActivityIndicator, Alert, Dimensions, Platform, StatusBar
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { getMonthlyCalendar, createWeeklyEvent, createOneshotEvent } from '../../services/scheduleService';
+import { getMonthlyCalendar, createWeeklyEvent, createOneshotEvent, updateEvent, deleteEvent } from '../../services/scheduleService';
 import { CalendarEvent } from '../../types';
 
 const { width } = Dimensions.get('window');
@@ -29,9 +29,16 @@ export const ScheduleScreen: React.FC = () => {
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
   const [addType, setAddType] = useState<'weekly' | 'oneshot'>('oneshot');
   const [form, setForm] = useState({ title: '', date: '', startTime: '09:00', endTime: '10:00', colorHex: EVENT_COLORS[0] });
   const [saving, setSaving] = useState(false);
+
+  const openAddModal = () => {
+    setSelectedEventId(null);
+    setForm({ title: '', date: '', startTime: '09:00', endTime: '10:00', colorHex: EVENT_COLORS[0] });
+    setShowAddModal(true);
+  };
 
   const today = new Date();
   const weekDates = DAYS.map((_, i) => {
@@ -60,14 +67,41 @@ export const ScheduleScreen: React.FC = () => {
     }
     try {
       setSaving(true);
-      if (addType === 'weekly') await createWeeklyEvent({ title: form.title, dayOfWeek: selectedDay, startTime: form.startTime, endTime: form.endTime, colorHex: form.colorHex });
-      else await createOneshotEvent({ title: form.title, date: form.date || today.toISOString().slice(0, 10), startTime: form.startTime, endTime: form.endTime, colorHex: form.colorHex });
+      if (selectedEventId) {
+        await updateEvent(selectedEventId, {
+          title: form.title,
+          startTime: form.startTime,
+          endTime: form.endTime,
+          colorHex: form.colorHex,
+          date: addType === 'oneshot' ? form.date : undefined,
+          dayOfWeek: addType === 'weekly' ? selectedDay : undefined,
+          type: addType === 'weekly' ? 'WeeklyEvent' : 'OneshotEvent',
+        });
+      } else {
+        if (addType === 'weekly') await createWeeklyEvent({ title: form.title, dayOfWeek: selectedDay, startTime: form.startTime, endTime: form.endTime, colorHex: form.colorHex });
+        else await createOneshotEvent({ title: form.title, date: form.date || today.toISOString().slice(0, 10), startTime: form.startTime, endTime: form.endTime, colorHex: form.colorHex });
+      }
       setShowAddModal(false);
-      setForm({ title: '', date: '', startTime: '09:00', endTime: '10:00', colorHex: EVENT_COLORS[0] });
       loadEvents();
     } catch (e: any) {
-      Alert.alert('Lỗi', e?.response?.data?.message || 'Không thể tạo sự kiện');
+      Alert.alert('Lỗi', e?.response?.data?.message || 'Không thể lưu sự kiện');
     } finally { setSaving(false); }
+  };
+
+  const handleDelete = () => {
+    if (!selectedEventId) return;
+    Alert.alert('Xóa sự kiện', 'Bạn có chắc muốn xóa sự kiện này?', [
+      { text: 'Hủy', style: 'cancel' },
+      { text: 'Xóa', style: 'destructive', onPress: async () => {
+        try {
+          await deleteEvent(selectedEventId);
+          setShowAddModal(false);
+          loadEvents();
+        } catch (e) {
+          Alert.alert('Lỗi', 'Không thể xóa sự kiện');
+        }
+      }}
+    ]);
   };
 
   return (
@@ -133,9 +167,21 @@ export const ScheduleScreen: React.FC = () => {
                   const color = ev.colorHex || EVENT_COLORS[i % EVENT_COLORS.length];
                   return (
                     <TouchableOpacity 
-                      key={ev.id || i} 
+                      key={ev._id || i} 
                       style={[s.evBlock, { top, height, backgroundColor: color + '1A', borderLeftColor: color }]}
                       activeOpacity={0.7}
+                      onPress={() => {
+                        setSelectedEventId(ev._id!);
+                        setAddType(ev.isWeekly ? 'weekly' : 'oneshot');
+                        setForm({
+                          title: ev.title || '',
+                          date: ev.date ? new Date(ev.date).toISOString().slice(0, 10) : today.toISOString().slice(0, 10),
+                          startTime: ev.startTime || '09:00',
+                          endTime: ev.endTime || '10:00',
+                          colorHex: ev.colorHex || color
+                        });
+                        setShowAddModal(true);
+                      }}
                     >
                       <Text style={[s.evTitle, { color }]} numberOfLines={1}>{ev.title}</Text>
                       <View style={s.evTimeRow}>
@@ -154,7 +200,7 @@ export const ScheduleScreen: React.FC = () => {
                   </View>
                   <Text style={s.emptyTitle}>Lịch trống</Text>
                   <Text style={s.emptyTxt}>Không có sự kiện nào được lên lịch cho ngày này.</Text>
-                  <TouchableOpacity style={s.emptyBtn} onPress={() => setShowAddModal(true)}>
+                  <TouchableOpacity style={s.emptyBtn} onPress={openAddModal}>
                     <Text style={s.emptyBtnTxt}>Thêm sự kiện mới</Text>
                   </TouchableOpacity>
                 </View>
@@ -165,7 +211,7 @@ export const ScheduleScreen: React.FC = () => {
       </View>
 
       {/* FAB */}
-      <TouchableOpacity style={s.fab} onPress={() => setShowAddModal(true)} activeOpacity={0.8}>
+      <TouchableOpacity style={s.fab} onPress={openAddModal} activeOpacity={0.8}>
         <Ionicons name="add" size={30} color="#FFFFFF" />
       </TouchableOpacity>
 
@@ -175,7 +221,7 @@ export const ScheduleScreen: React.FC = () => {
           <View style={s.mCard}>
             <View style={s.handleBar} />
             <View style={s.mHeader}>
-              <Text style={s.mTitle}>Tạo sự kiện mới</Text>
+              <Text style={s.mTitle}>{selectedEventId ? 'Sửa sự kiện' : 'Tạo sự kiện mới'}</Text>
               <TouchableOpacity onPress={() => setShowAddModal(false)} style={s.closeBtn}>
                 <Ionicons name="close" size={24} color="#64748B" />
               </TouchableOpacity>
@@ -247,7 +293,12 @@ export const ScheduleScreen: React.FC = () => {
             </ScrollView>
 
             <View style={s.mFooter}>
-              <TouchableOpacity style={s.saveBtn} onPress={handleSave} disabled={saving}>
+              {selectedEventId && (
+                <TouchableOpacity style={s.deleteBtn} onPress={handleDelete}>
+                  <Ionicons name="trash-outline" size={20} color="#EF4444" />
+                </TouchableOpacity>
+              )}
+              <TouchableOpacity style={[s.saveBtn, selectedEventId && { flex: 1, marginLeft: 12 }]} onPress={handleSave} disabled={saving}>
                 {saving ? <ActivityIndicator color="#FFF" /> : (
                   <>
                     <Ionicons name="checkmark-circle-outline" size={20} color="#FFF" style={{ marginRight: 8 }} />
@@ -344,7 +395,8 @@ const s = StyleSheet.create({
   colorCircle: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', borderWidth: 3, borderColor: 'transparent' },
   colorCircleSel: { borderColor: '#E2E8F0', transform: [{ scale: 1.1 }] },
   
-  mFooter: { paddingTop: 16, paddingBottom: Platform.OS === 'ios' ? 32 : 24, borderTopWidth: 1, borderTopColor: '#F1F5F9' },
-  saveBtn: { flexDirection: 'row', backgroundColor: '#3B82F6', borderRadius: 16, paddingVertical: 18, alignItems: 'center', justifyContent: 'center', shadowColor: '#3B82F6', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 4 },
+  mFooter: { flexDirection: 'row', paddingTop: 16, paddingBottom: Platform.OS === 'ios' ? 32 : 24, borderTopWidth: 1, borderTopColor: '#F1F5F9' },
+  saveBtn: { flex: 1, flexDirection: 'row', backgroundColor: '#3B82F6', borderRadius: 16, paddingVertical: 18, alignItems: 'center', justifyContent: 'center', shadowColor: '#3B82F6', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 4 },
   saveTxt: { fontSize: 16, fontWeight: '700', color: '#FFFFFF' },
+  deleteBtn: { width: 56, height: 56, borderRadius: 16, backgroundColor: '#FEF2F2', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#FECACA' },
 });

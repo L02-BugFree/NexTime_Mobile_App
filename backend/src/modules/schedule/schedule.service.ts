@@ -234,6 +234,7 @@ export class ScheduleService {
           ...(dto.colorHex !== undefined ? { colorHex: dto.colorHex } : {}),
           ...(dto.tag !== undefined ? { tag: dto.tag } : {}),
           ...(dto.date !== undefined ? { date: dto.date } : {}),
+          ...(dto.dayOfWeek !== undefined ? { dayOfWeek: dto.dayOfWeek } : {}),
           ...(dto.type !== undefined ? { type: dto.type } : {}),
         },
         { new: true },

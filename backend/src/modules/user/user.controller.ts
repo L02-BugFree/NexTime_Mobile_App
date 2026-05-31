@@ -132,6 +132,15 @@ export class UserController {
   }
 
   @UseGuards(JwtAuthGuard)
+  @Get('friends/requests')
+  @ApiOperation({ summary: 'Get pending friend requests with requester info' })
+  @ApiBearerAuth()
+  @ApiResponse({ status: 200 })
+  async getFriendRequests(@Req() req: any) {
+    return this.userService.getFriendRequests(req.user.userId);
+  }
+
+  @UseGuards(JwtAuthGuard)
   @Post('friends/accept')
   @ApiOperation({ summary: 'Accept friend request' })
   @ApiBearerAuth()

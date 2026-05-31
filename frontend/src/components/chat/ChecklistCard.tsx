@@ -5,7 +5,7 @@ import { typography } from '../../theme/typography';
 import { Ionicons } from '@expo/vector-icons';
 
 interface ChecklistItem {
-  id: string;
+  _id: string;
   text: string;
   completed: boolean;
 }
@@ -25,7 +25,7 @@ export const ChecklistCard: React.FC<ChecklistCardProps> = ({
 
   const handleToggle = (id: string) => {
     setItems(prev => prev.map(item => 
-      item.id === id ? { ...item, completed: !item.completed } : item
+      item._id === id ? { ...item, completed: !item.completed } : item
     ));
     onToggleItem?.(id);
   };
@@ -56,10 +56,10 @@ export const ChecklistCard: React.FC<ChecklistCardProps> = ({
       <View style={styles.itemsContainer}>
         {safeItems.map(item => (
           <TouchableOpacity 
-            key={item.id} 
+            key={item._id} 
             style={styles.itemRow}
             activeOpacity={0.7}
-            onPress={() => handleToggle(item.id)}
+            onPress={() => handleToggle(item._id)}
           >
             <Ionicons 
               name={item.completed ? "checkbox" : "square-outline"} 
