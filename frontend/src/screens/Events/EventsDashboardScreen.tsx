@@ -85,7 +85,7 @@ export const EventsDashboardScreen: React.FC = () => {
                 </View>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalScroll}>
                   {polls.length > 0 ? polls.map((poll, index) => (
-                    <View key={poll.id || poll._id || index.toString()} style={styles.cardWrapper}>
+                    <View key={poll._id || poll.id || index.toString()} style={styles.cardWrapper}>
                       <View style={styles.groupBadge}>
                         <Ionicons name="people" size={14} color="#3B82F6" />
                         <Text style={styles.groupContext}>{poll.groupName || 'Nhóm chung'}</Text>
@@ -93,7 +93,7 @@ export const EventsDashboardScreen: React.FC = () => {
                       <PollCard 
                         question={poll.question || 'Bình chọn'}
                         options={(poll.options || []).map((opt: any, idx: number) => ({
-                          id: opt.id || idx.toString(),
+                          _id: opt.id || idx.toString(),
                           text: opt.text || `${opt.startTime || ''} - ${opt.endTime || ''}`,
                           votes: Array.isArray(opt.votes) ? opt.votes.length : (opt.votes || 0),
                         }))}
@@ -114,7 +114,7 @@ export const EventsDashboardScreen: React.FC = () => {
                 </View>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalScroll}>
                   {checklists.length > 0 ? checklists.map((checklist, index) => (
-                    <View key={checklist.id || (checklist as any)._id || index.toString()} style={styles.cardWrapper}>
+                    <View key={checklist._id || (checklist as any).id || index.toString()} style={styles.cardWrapper}>
                       <View style={styles.groupBadge}>
                         <Ionicons name="people" size={14} color="#10B981" />
                         <Text style={[styles.groupContext, { color: '#10B981' }]}>{checklist.roomId || 'Nhóm chung'}</Text>

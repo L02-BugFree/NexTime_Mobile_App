@@ -6,7 +6,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Avatar } from '../ui/Avatar';
 
 interface PollOption {
-  id: string;
+  _id: string;
   text: string;
   votes: number;
   votedByMe?: boolean;
@@ -30,7 +30,7 @@ export const PollCard: React.FC<PollCardProps> = ({
   const handleVote = (id: string) => {
     // Demo logic: toggle vote
     setOptions(prev => prev.map(opt => {
-      if (opt.id === id) {
+      if (opt._id === id) {
         return { ...opt, votes: opt.votedByMe ? opt.votes - 1 : opt.votes + 1, votedByMe: !opt.votedByMe };
       }
       return opt;
@@ -47,10 +47,10 @@ export const PollCard: React.FC<PollCardProps> = ({
           const progress = totalVotes > 0 ? (option.votes / totalVotes) * 100 : 0;
           return (
             <TouchableOpacity 
-              key={option.id} 
+              key={option._id} 
               style={styles.optionRow}
               activeOpacity={0.7}
-              onPress={() => handleVote(option.id)}
+              onPress={() => handleVote(option._id)}
             >
               <View style={styles.optionHeader}>
                 <View style={styles.optionLeft}>

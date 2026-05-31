@@ -53,12 +53,12 @@ export const ChatListScreen: React.FC = () => {
               data={rooms.slice(0, 8)}
               horizontal
               showsHorizontalScrollIndicator={false}
-              keyExtractor={(r, index) => r.id || String(index)}
+              keyExtractor={(r, index) => r._id || String(index)}
               contentContainerStyle={{ paddingHorizontal: 20, paddingVertical: 16, gap: 20 }}
               renderItem={({ item, index }) => (
                 <TouchableOpacity
                   style={s.storyItem}
-                  onPress={() => navigation.navigate('ChatRoom', { roomId: item.id || '', roomName: item.name || 'Chat' })}
+                  onPress={() => navigation.navigate('ChatRoom', { roomId: item._id || '', roomName: item.name || 'Chat' })}
                   activeOpacity={0.8}
                 >
                   <View style={s.storyAvatarWrapper}>
@@ -74,13 +74,13 @@ export const ChatListScreen: React.FC = () => {
         {/* Conversations list */}
         <FlatList
           data={rooms}
-          keyExtractor={(r, index) => r.id || String(index)}
+          keyExtractor={(r, index) => r._id || String(index)}
           refreshControl={<RefreshControl refreshing={loading} onRefresh={loadRooms} tintColor="#3B82F6" />}
           contentContainerStyle={{ paddingBottom: 100, paddingTop: 8 }}
           renderItem={({ item, index }) => (
             <TouchableOpacity
               style={s.roomItem}
-              onPress={() => navigation.navigate('ChatRoom', { roomId: item.id || '', roomName: item.name || 'Chat' })}
+              onPress={() => navigation.navigate('ChatRoom', { roomId: item._id || '', roomName: item.name || 'Chat' })}
               activeOpacity={0.7}
             >
               <Avatar size={56} name={item.name || 'U'} style={{ marginRight: 16 }} />

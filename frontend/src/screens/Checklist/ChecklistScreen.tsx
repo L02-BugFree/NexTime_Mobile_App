@@ -92,7 +92,7 @@ export const ChecklistScreen: React.FC = () => {
 
         <FlatList
           data={checklists}
-          keyExtractor={(item, i) => item.id || String(i)}
+          keyExtractor={(item, i) => item._id || String(i)}
           renderItem={renderItem}
           refreshControl={<RefreshControl refreshing={loading} onRefresh={loadData} tintColor="#3B82F6" />}
           contentContainerStyle={s.list}
