@@ -9,6 +9,7 @@ import { AuthModule } from './modules/auth/auth.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { DatabaseConfig } from './configs/database.config';
+import { ChatModule } from './modules/chat/chat.module';
 
 @Module({
   imports: [
@@ -26,6 +27,7 @@ import { DatabaseConfig } from './configs/database.config';
     GroupModule,
     UserModule,
     AuthModule,
+    ChatModule,
     require('./modules/rooms/rooms.module').RoomsModule,
     require('./modules/polls/polls.module').PollsModule,
     require('./modules/ai/ai.module').AIModule,

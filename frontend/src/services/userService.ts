@@ -35,6 +35,7 @@ export const searchUsers = async (query: string): Promise<User[]> => {
 };
 
 export const sendFriendRequest = async (targetUserId: string): Promise<void> => {
+  console.log('Sending friend request to user ID:', targetUserId);
   await axiosClient.post(USER_ENDPOINTS.FRIENDS_REQUEST, { targetUserId });
 };
 

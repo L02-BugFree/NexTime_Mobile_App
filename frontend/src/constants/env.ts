@@ -2,7 +2,7 @@
 // Đọc từ app.json extra hoặc .env (expo-constants)
 
 export const API_BASE_URL: string =
-  process.env.EXPO_PUBLIC_API_BASE_URL ?? 'http://localhost:3000/api';
+  process.env.EXPO_PUBLIC_API_BASE_URL ?? 'http://localhost:3000/';
 
 export const API_TIMEOUT: number = Number(process.env.EXPO_PUBLIC_API_TIMEOUT) || 10_000;
 

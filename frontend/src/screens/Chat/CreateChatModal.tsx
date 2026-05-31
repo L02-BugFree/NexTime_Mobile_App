@@ -78,9 +78,9 @@ export const CreateChatModal: React.FC<CreateChatModalProps> = ({ visible, onClo
   };
 
   const renderFriend = ({ item }: { item: User }) => {
-    const isSelected = selectedIds.includes(item.id);
+    const isSelected = selectedIds.includes(item._id);
     return (
-      <TouchableOpacity style={s.friendItem} onPress={() => toggleSelect(item.id)} activeOpacity={0.7}>
+      <TouchableOpacity style={s.friendItem} onPress={() => toggleSelect(item._id)} activeOpacity={0.7}>
         <Avatar size={44} name={item.displayName || item.email || 'U'} />
         <View style={s.friendInfo}>
           <Text style={s.friendName}>{item.displayName || 'Người dùng'}</Text>
@@ -128,7 +128,7 @@ export const CreateChatModal: React.FC<CreateChatModalProps> = ({ visible, onClo
           ) : (
             <FlatList
               data={friends}
-              keyExtractor={item => item.id}
+              keyExtractor={item => item._id}
               renderItem={renderFriend}
               contentContainerStyle={s.list}
               ListEmptyComponent={
