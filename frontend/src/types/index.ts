@@ -239,3 +239,30 @@ export interface PaginatedResponse<T> {
   page: number;
   total: number;
 }
+
+// ─── Group Types ──────────────────────────────────────────────────────────────
+export interface Group {
+  _id: string;
+  name: string;
+  members: User[];
+  createdAt: string;
+}
+
+export interface GroupHeatmapResponse {
+  groupId: string;
+  month: string;
+  timeSlots: HeatmapSlot[];
+}
+
+export interface HeatmapSlot {
+  date: string;        // YYYY-MM-DD
+  startTime: string;   // HH:mm
+  endTime: string;     // HH:mm
+  busyCount: number;   // Số người bận trong khung giờ này
+}
+
+export interface RoomHeatmapResponse {
+  roomId: string;
+  month: string;
+  timeSlots: HeatmapSlot[];
+}

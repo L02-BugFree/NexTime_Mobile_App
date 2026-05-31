@@ -246,8 +246,7 @@ export class RoomsService {
     const privacyCheck = async (targetUserId: string): Promise<boolean> => {
       if (room.type !== RoomType.DIRECT) return true;
 
-      // In DIRECT room, check if the OTHER user is anonymous
-      if (targetUserId === userId) return true; // User can see their own calendar
+      if (targetUserId === userId) return true;
 
       const targetUser = await this.userModel
         .findById(targetUserId)
@@ -255,7 +254,6 @@ export class RoomsService {
         .exec();
       if (!targetUser) return false;
 
-      // If other user enables anonymous mode, hide their calendar
       if (targetUser.privacySettings?.anonymousOnGroupCalendar) {
         return false;
       }
@@ -263,16 +261,21 @@ export class RoomsService {
       return true;
     };
 
-    const timeSlots = await this.heatmapService.generateHeatmap(
+    // ✅ Gọi service và nhận kết quả
+    const result = await this.heatmapService.generateHeatmap(
       memberIds,
       month,
       privacyCheck,
     );
 
+    // ✅ Destructure sau khi đã có kết quả
+    const { busySlots, totalMembers } = result;
+
     return {
       roomId: room._id,
       month: month ?? new Date().toISOString().slice(0, 7),
-      timeSlots,
+      totalMembers,
+      busySlots,
     };
   }
 
