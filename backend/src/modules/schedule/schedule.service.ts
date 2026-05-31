@@ -1,11 +1,17 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  Inject,
+  forwardRef,
+  ForbiddenException,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { Event } from './entities/event.schema';
 
 import { MonthlyCalendar } from './entities/monthly-calendar.schema';
 import { CreateOneshotDto } from './dto/create-oneshot.dto';
-
+import { ChatGateway } from '../chat/chat.gateway'; // Import ChatGateway
 
 @Injectable()
 export class ScheduleService {
@@ -13,6 +19,8 @@ export class ScheduleService {
     @InjectModel(Event.name) private eventModel: Model<Event>,
     @InjectModel(MonthlyCalendar.name)
     private monthlyCalendarModel: Model<MonthlyCalendar>,
+    @Inject(forwardRef(() => ChatGateway))
+    private chatGateway: ChatGateway,
   ) {}
 
   async createWeekly(createWeeklyDto: any, userId: string, groupId?: string) {
@@ -321,7 +329,6 @@ export class ScheduleService {
   }
 
 
-
   async delete(userId: string, eventId: string): Promise<{ message: string }> {
     const event = await this.eventModel.findOneAndDelete({
       _id: eventId,
@@ -407,5 +414,170 @@ export class ScheduleService {
         a.startTime.localeCompare(b.startTime),
       ),
     };
+  }
+
+  /**
+   * Share an event to multiple rooms
+   */
+  async shareEventToRooms(userId: string, eventId: string, roomIds: string[]) {
+    const event = await this.eventModel.findOne({
+      _id: new Types.ObjectId(eventId),
+      userId: new Types.ObjectId(userId),
+    });
+
+    if (!event) {
+      throw new NotFoundException('Event not found');
+    }
+
+    // Add rooms to sharedWithRooms array (avoid duplicates)
+    await this.eventModel.updateOne(
+      { _id: new Types.ObjectId(eventId) },
+      { $addToSet: { sharedWithRooms: { $each: roomIds } } },
+    );
+    // Emit socket event for real-time updates to each room
+    for (const roomId of roomIds) {
+      this.chatGateway.server.to(`room:${roomId}`).emit('event-shared', {
+        eventId: event._id,
+        title: event.title,
+        startTime: event.startTime,
+        endTime: event.endTime,
+        sharedBy: userId,
+        event: {
+          _id: event._id,
+          title: event.title,
+          description: event.description,
+          startTime: event.startTime,
+          endTime: event.endTime,
+          colorHex: event.colorHex,
+          type: event.type,
+        },
+      });
+    }
+    return { success: true, sharedWithRooms: roomIds };
+  }
+
+  /**
+   * Get shared events in a specific room
+   */
+  async getSharedEventsInRoom(
+    userId: string,
+    roomId: string,
+    month?: string,
+  ): Promise<any[]> {
+    // First verify user is member of the room
+    const isMember = await this.verifyRoomMember(userId, roomId);
+    if (!isMember) {
+      throw new ForbiddenException('You are not a member of this room');
+    }
+    // Build query for shared events
+    const query: any = {
+      sharedWithRooms: { $in: [new Types.ObjectId(roomId)] },
+    };
+    // If month is provided, filter by date range
+    if (month) {
+      const monthStr = month;
+      const startDate = new Date(`${monthStr}-01T00:00:00.000Z`);
+      const endDate = new Date(
+        Date.UTC(startDate.getUTCFullYear(), startDate.getUTCMonth() + 1, 1),
+      );
+
+      // For oneshot events
+      query.$or = [
+        {
+          type: 'oneshot',
+          date: { $regex: `^${monthStr}` },
+        },
+        {
+          type: 'weekly',
+          // Weekly events need to be handled separately, return all and filter later
+        },
+      ];
+    }
+    let events = await this.eventModel
+      .find(query)
+      .populate('userId', 'displayName email avatarUrl')
+      .lean()
+      .exec();
+    // Filter weekly events if month is provided
+    if (month && events.length > 0) {
+      events = events.filter((event: any) => {
+        if (event.type === 'oneshot') return true;
+
+        // For weekly events, check if they have occurrences in the month
+        const monthStart = new Date(`${month}-01T00:00:00.000Z`);
+        const monthEnd = new Date(
+          Date.UTC(
+            monthStart.getUTCFullYear(),
+            monthStart.getUTCMonth() + 1,
+            1,
+          ),
+        );
+
+        // Weekly events are valid if they have a dayOfWeek
+        return event.dayOfWeek !== undefined;
+      });
+    }
+    return events;
+  }
+
+  /**
+   * Unshare event from a room
+   */
+  async unshareEventFromRoom(
+    userId: string,
+    eventId: string,
+    roomId: string,
+  ): Promise<{ success: boolean }> {
+    const event = await this.eventModel.findOne({
+      _id: new Types.ObjectId(eventId),
+      userId: new Types.ObjectId(userId),
+    });
+
+    if (!event) {
+      throw new NotFoundException('Event not found');
+    }
+
+    await this.eventModel.updateOne(
+      { _id: new Types.ObjectId(eventId) },
+      { $pull: { sharedWithRooms: new Types.ObjectId(roomId) } },
+    );
+
+    // Notify room that event was unshared
+    this.chatGateway.server.to(`room:${roomId}`).emit('event-unshared', {
+      eventId: event._id,
+      unsharedBy: userId,
+    });
+
+    return { success: true };
+  }
+
+  /**
+   * Helper to verify if user is a member of a room
+   */
+  private async verifyRoomMember(userId: string, roomId: string): Promise<boolean> {
+    // Import Room model dynamically to avoid circular dependency
+    const roomModel = this.eventModel.db.model('Room');
+    const room = await roomModel.findById(roomId).exec();
+
+    if (!room) return false;
+
+    const uid = userId.toString();
+
+    if (room.type === 'DIRECT' || room.type === 'SELF') {
+      return (
+        room.ownerId?.toString() === uid ||
+        room.userA?.toString() === uid ||
+        room.userB?.toString() === uid
+      );
+    }
+
+    if (room.type === 'GROUP' && room.groupId) {
+      const groupModel = this.eventModel.db.model('Group');
+      const group = await groupModel.findById(room.groupId).exec();
+      if (!group) return false;
+      return group.members?.some((m: any) => m?.toString() === uid) ?? false;
+    }
+
+    return false;
   }
 }

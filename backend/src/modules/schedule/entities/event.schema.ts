@@ -35,6 +35,12 @@ export class Event extends Document {
 
   @Prop({ default: 15 })
   remindBefore!: number;
+
+  @Prop({ type: [{ type: Types.ObjectId, ref: 'Room' }], default: [] })
+  sharedWithRooms!: Types.ObjectId[];
+
+  @Prop({ type: Boolean, default: false })
+  isPublicOnGroupCalendar!: boolean;
 }
 
 export type EventDocument = Event & Document;

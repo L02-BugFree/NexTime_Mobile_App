@@ -23,7 +23,14 @@ export const sendMessage = async (roomId: string, content: string): Promise<Mess
   return response.data;
 };
 
-export const getRoomHeatmap = async (roomId: string): Promise<any> => {
-  const response = await axiosClient.get<any>(ROOM_ENDPOINTS.HEATMAP(roomId));
+// export const getRoomHeatmap = async (roomId: string): Promise<any> => {
+//   const response = await axiosClient.get<any>(ROOM_ENDPOINTS.HEATMAP(roomId));
+//   return response.data;
+// };
+
+export const getRoomHeatmap = async (roomId: string, month?: string): Promise<any> => {
+  const response = await axiosClient.get(`/rooms/${roomId}/heatmap`, {
+    params: month ? { month } : undefined,
+  });
   return response.data;
 };

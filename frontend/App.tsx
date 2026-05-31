@@ -3,6 +3,9 @@ import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AppNavigator } from './src/navigation/AppNavigator';
 import * as Sentry from '@sentry/react-native';
+import dayjs from 'dayjs';
+import isoWeek from 'dayjs/plugin/isoWeek';
+dayjs.extend(isoWeek);
 
 Sentry.init({
   dsn: 'https://d630633590b4713df9b4b277a84247c3@o4511440051961856.ingest.us.sentry.io/4511440052158464',

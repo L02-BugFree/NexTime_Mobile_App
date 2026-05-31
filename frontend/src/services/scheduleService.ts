@@ -37,3 +37,29 @@ export const getScheduleHeatmap = async (groupId: string): Promise<HeatmapData> 
   const response = await axiosClient.get<HeatmapData>(SCHEDULE_ENDPOINTS.GET_HEATMAP(groupId));
   return response.data;
 };
+
+/**
+ * Share an event to multiple rooms
+ */
+export const shareEventToRooms = async (eventId: string, roomIds: string[]): Promise<any> => {
+  const response = await axiosClient.post(`/schedule/events/${eventId}/share`, { roomIds });
+  return response.data;
+};
+
+/**
+ * Unshare an event from a room
+ */
+export const unshareEventFromRoom = async (eventId: string, roomId: string): Promise<any> => {
+  const response = await axiosClient.delete(`/schedule/events/${eventId}/share/${roomId}`);
+  return response.data;
+};
+
+/**
+ * Get shared events in a room
+ */
+export const getSharedEventsInRoom = async (roomId: string, month?: string): Promise<any[]> => {
+  const response = await axiosClient.get(`/schedule/rooms/${roomId}/shared-events`, {
+    params: month ? { month } : undefined,
+  });
+  return response.data;
+};
