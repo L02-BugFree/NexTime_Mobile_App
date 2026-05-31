@@ -1,4 +1,5 @@
-import { Module } from '@nestjs/common';
+// chat.module.ts
+import { Module, forwardRef } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { JwtModule } from '@nestjs/jwt';
 import { ConfigModule, ConfigService } from '@nestjs/config';
@@ -7,6 +8,7 @@ import { ChatService } from './chat.service';
 import { Message, MessageSchema } from '../rooms/entities/message.schema';
 import { Room, RoomSchema } from '../rooms/entities/room.schema';
 import { Group, GroupSchema } from '../group/entities/group.schema';
+import { ScheduleModule } from '../schedule/schedule.module'; // Import ScheduleModule
 
 @Module({
   imports: [
@@ -15,7 +17,6 @@ import { Group, GroupSchema } from '../group/entities/group.schema';
       { name: Room.name, schema: RoomSchema },
       { name: Group.name, schema: GroupSchema },
     ]),
-    // Dùng registerAsync + ConfigService, giống hệt AuthModule
     JwtModule.registerAsync({
       imports: [ConfigModule],
       useFactory: (configService: ConfigService) => ({
@@ -23,8 +24,9 @@ import { Group, GroupSchema } from '../group/entities/group.schema';
       }),
       inject: [ConfigService],
     }),
+    forwardRef(() => ScheduleModule), // Use forwardRef to avoid circular dependency
   ],
   providers: [ChatGateway, ChatService],
-  exports: [ChatService],
+  exports: [ChatService, ChatGateway],
 })
 export class ChatModule {}

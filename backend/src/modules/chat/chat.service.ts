@@ -69,4 +69,26 @@ export class ChatService {
 
     return message;
   }
+
+  // chat.service.ts - Add this method if needed
+  async getRoomMembers(roomId: string): Promise<string[]> {
+    const room = await this.roomModel.findById(roomId).exec();
+    if (!room) return [];
+
+    if (room.type === RoomType.DIRECT || room.type === RoomType.SELF) {
+      return [
+        room.ownerId?.toString(),
+        room.userA?.toString(),
+        room.userB?.toString(),
+      ].filter(Boolean) as string[];
+    }
+
+    if (room.type === RoomType.GROUP && room.groupId) {
+      const group = await this.groupModel.findById(room.groupId).exec();
+      if (!group) return [];
+      return (group.members ?? []).map((m: any) => m.toString());
+    }
+
+    return [];
+  }
 }

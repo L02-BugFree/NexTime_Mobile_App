@@ -1,18 +1,15 @@
-import { Module } from '@nestjs/common';
+import { forwardRef, Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { ScheduleService } from './schedule.service';
 import { ScheduleController } from './schedule.controller';
 import { Event, EventSchema } from './entities/event.schema';
-import { WeeklyEvent, WeeklyEventSchema } from './entities/weekly-event.schema';
-import {
-  OneShotEvent,
-  OneShotEventSchema,
-} from './entities/one-shot-event.schema';
+import { WeeklyEventSchema } from './entities/weekly-event.schema';
+import { OneShotEventSchema } from './entities/one-shot-event.schema';
 import {
   MonthlyCalendar,
   MonthlyCalendarSchema,
 } from './entities/monthly-calendar.schema';
-
+import { ChatModule } from '../chat/chat.module';
 @Module({
   imports: [
     MongooseModule.forFeature([
@@ -29,6 +26,7 @@ import {
         schema: MonthlyCalendarSchema,
       },
     ]),
+    forwardRef(() => ChatModule),
   ],
   controllers: [ScheduleController],
   providers: [ScheduleService],

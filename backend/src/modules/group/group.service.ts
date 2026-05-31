@@ -1,3 +1,4 @@
+// rooms.service.ts - Complete version
 import {
   BadRequestException,
   ForbiddenException,
@@ -6,25 +7,20 @@ import {
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
-import { Group } from './entities/group.schema';
+import { Group } from '../group/entities/group.schema';
+import { User } from '../user/entities/user.schema';
+import { HeatmapService } from '../heatmap/heatmap.service';
 import { CreateGroupDto } from './dto/create-group.dto';
-import { MonthlyCalendar } from '../schedule/entities/monthly-calendar.schema';
-
-type HeatmapSlot = {
-  date: string;
-  startTime: string;
-  endTime: string;
-  busyCount: number;
-};
 
 @Injectable()
 export class GroupService {
   constructor(
     @InjectModel(Group.name) private groupModel: Model<Group>,
-    @InjectModel(MonthlyCalendar.name)
-    private monthlyCalendarModel: Model<MonthlyCalendar>,
+    @InjectModel(User.name) private userModel: Model<User>,
+    private heatmapService: HeatmapService,
   ) {}
 
+  // ✅ Create a new group
   async create(userId: string, createGroupDto: CreateGroupDto) {
     const memberIds = new Set<string>([
       ...(createGroupDto.members ?? []),
@@ -37,6 +33,7 @@ export class GroupService {
     return createdGroup.save();
   }
 
+  // ✅ Get all groups for a user
   async findAll(userId: string) {
     return this.groupModel
       .find({ members: new Types.ObjectId(userId) })
@@ -44,6 +41,99 @@ export class GroupService {
       .exec();
   }
 
+  // ✅ Get group by ID
+  async findOne(groupId: string) {
+    const group = await this.groupModel
+      .findById(groupId)
+      .populate('members', '_id displayName email avatarUrl')
+      .exec();
+    if (!group) throw new NotFoundException('Group not found');
+    return group;
+  }
+
+  // ✅ Update group
+  async update(
+    userId: string,
+    groupId: string,
+    updateData: Partial<CreateGroupDto>,
+  ) {
+    const group = await this.groupModel.findById(groupId).exec();
+    if (!group) throw new NotFoundException('Group not found');
+
+    const isMember = group.members.some(
+      (memberId) => memberId.toString() === userId,
+    );
+    if (!isMember) {
+      throw new ForbiddenException('You are not a member of this group');
+    }
+
+    if (updateData.name) group.name = updateData.name;
+    if (updateData.members) {
+      const newMembers = new Set([
+        ...group.members.map((id) => id.toString()),
+        ...updateData.members,
+        userId,
+      ]);
+      group.members = Array.from(newMembers).map(
+        (id) => new Types.ObjectId(id),
+      );
+    }
+
+    return group.save();
+  }
+
+  // ✅ Delete group (only owner can delete)
+  async delete(userId: string, groupId: string) {
+    const group = await this.groupModel.findById(groupId).exec();
+    if (!group) throw new NotFoundException('Group not found');
+
+    // Check if user is the creator (assuming first member is creator)
+    const isCreator = group.members[0]?.toString() === userId;
+    if (!isCreator) {
+      throw new ForbiddenException('Only group creator can delete the group');
+    }
+
+    await this.groupModel.findByIdAndDelete(groupId);
+    return { message: 'Group deleted successfully' };
+  }
+
+  // ✅ Add member to group
+  async addMember(userId: string, groupId: string, memberId: string) {
+    const group = await this.groupModel.findById(groupId).exec();
+    if (!group) throw new NotFoundException('Group not found');
+
+    const isMember = group.members.some((id) => id.toString() === userId);
+    if (!isMember) {
+      throw new ForbiddenException('You are not a member of this group');
+    }
+
+    if (group.members.some((id) => id.toString() === memberId)) {
+      throw new BadRequestException('User is already a member');
+    }
+
+    group.members.push(new Types.ObjectId(memberId));
+    await group.save();
+
+    return group;
+  }
+
+  // ✅ Remove member from group
+  async removeMember(userId: string, groupId: string, memberId: string) {
+    const group = await this.groupModel.findById(groupId).exec();
+    if (!group) throw new NotFoundException('Group not found');
+
+    const isAdmin = group.members[0]?.toString() === userId;
+    if (!isAdmin) {
+      throw new ForbiddenException('Only group admin can remove members');
+    }
+
+    group.members = group.members.filter((id) => id.toString() !== memberId);
+    await group.save();
+
+    return group;
+  }
+
+  // ✅ Get heatmap for group
   async getHeatmap(userId: string, groupId: string, month?: string) {
     const group = await this.groupModel.findById(groupId).lean().exec();
     if (!group) throw new NotFoundException('Group not found');
@@ -51,110 +141,30 @@ export class GroupService {
     const isMember = (group.members ?? []).some(
       (memberId) => memberId.toString() === userId,
     );
-    if (!isMember)
+    if (!isMember) {
       throw new ForbiddenException('You are not a member of this group');
-
-    const monthStr = this.validateMonth(month);
-    const monthStart = new Date(`${monthStr}-01T00:00:00.000Z`);
-    const monthEnd = new Date(
-      Date.UTC(monthStart.getUTCFullYear(), monthStart.getUTCMonth() + 1, 1),
-    );
-
-    const memberIds = new Set(
-      (group.members ?? []).map((memberId) => memberId.toString()),
-    );
-    const calendars = (
-      await this.monthlyCalendarModel.find({ month: monthStr }).lean().exec()
-    ).filter((calendar) => memberIds.has(calendar.userId.toString()));
-
-    const slotMap = this.createMonthSlotMap(monthStart, monthEnd);
-
-    for (const calendar of calendars) {
-      for (const event of calendar.eventsInMonth ?? []) {
-        const baseDate = new Date(event.fullDate);
-        if (Number.isNaN(baseDate.getTime())) continue;
-
-        const start = this.combineDateAndTimeUtc(baseDate, event.startTime);
-        const end = this.combineDateAndTimeUtc(baseDate, event.endTime);
-        if (!start || !end || start >= end) continue;
-
-        for (
-          let cursor = new Date(start);
-          cursor < end;
-          cursor = new Date(cursor.getTime() + 30 * 60 * 1000)
-        ) {
-          const slotKey = cursor.toISOString();
-          const slot = slotMap.get(slotKey);
-          if (slot) slot.busyCount += 1;
-        }
-      }
     }
+
+    const memberIds = (group.members ?? []).map((id) => id.toString());
+
+    // For groups, all members are visible (no privacy check needed)
+    const timeSlots = await this.heatmapService.generateHeatmap(
+      memberIds,
+      month,
+    );
 
     return {
       groupId,
-      month: monthStr,
-      timeSlots: Array.from(slotMap.values()),
+      month: month ?? new Date().toISOString().slice(0, 7),
+      timeSlots,
     };
   }
 
+  // ✅ Remove user from all groups (when user is deleted)
   async removeMemberFromAllGroups(userId: string) {
     await this.groupModel.updateMany(
       { members: new Types.ObjectId(userId) },
       { $pull: { members: new Types.ObjectId(userId) } },
     );
-  }
-
-  private validateMonth(month?: string): string {
-    const monthString = month ?? new Date().toISOString().slice(0, 7);
-    if (!/^[0-9]{4}-(0[1-9]|1[0-2])$/.test(monthString)) {
-      throw new BadRequestException('month must be in format YYYY-MM');
-    }
-    return monthString;
-  }
-
-  private combineDateAndTimeUtc(
-    baseDate: Date,
-    time: string | undefined,
-  ): Date | null {
-    if (!time) return null;
-    const [hourStr, minuteStr] = time.split(':');
-    const hour = Number(hourStr);
-    const minute = Number(minuteStr);
-    if (!Number.isInteger(hour) || !Number.isInteger(minute)) return null;
-
-    return new Date(
-      Date.UTC(
-        baseDate.getUTCFullYear(),
-        baseDate.getUTCMonth(),
-        baseDate.getUTCDate(),
-        hour,
-        minute,
-        0,
-        0,
-      ),
-    );
-  }
-
-  private createMonthSlotMap(
-    monthStart: Date,
-    monthEnd: Date,
-  ): Map<string, HeatmapSlot> {
-    const slots = new Map<string, HeatmapSlot>();
-
-    for (
-      let cursor = new Date(monthStart);
-      cursor < monthEnd;
-      cursor = new Date(cursor.getTime() + 30 * 60 * 1000)
-    ) {
-      const end = new Date(cursor.getTime() + 30 * 60 * 1000);
-      slots.set(cursor.toISOString(), {
-        date: cursor.toISOString().slice(0, 10),
-        startTime: cursor.toISOString().slice(11, 16),
-        endTime: end.toISOString().slice(11, 16),
-        busyCount: 0,
-      });
-    }
-
-    return slots;
   }
 }

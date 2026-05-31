@@ -27,6 +27,14 @@ import { CreateOneShotEventDto } from './dto/create-one-shot-event.dto';
 import { CreateOneshotDto } from './dto/create-oneshot.dto';
 import { UpdateEventDto } from './dto/update-event.dto';
 import { EventResponseDto } from './entities/event-response.dto';
+import { ShareEventDto } from './dto/share-event.dto'; // Add this import
+
+// Add AuthenticatedRequest interface
+interface AuthenticatedRequest extends Request {
+  user: {
+    userId: string;
+  };
+}
 
 @ApiTags('schedule')
 @Controller('schedule')
@@ -104,5 +112,53 @@ export class ScheduleController {
   @ApiBearerAuth()
   async delete(@Req() req: any, @Param('eventId') eventId: string) {
     return this.scheduleService.delete(req.user.userId, eventId);
+  }
+
+  @Post('events/:eventId/share')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Share an event to multiple rooms' })
+  async shareEventToRooms(
+    @Req() req: AuthenticatedRequest,
+    @Param('eventId') eventId: string,
+    @Body() dto: ShareEventDto,
+  ) {
+    return this.scheduleService.shareEventToRooms(
+      req.user.userId,
+      eventId,
+      dto.roomIds,
+    );
+  }
+
+  @Delete('events/:eventId/share/:roomId')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Unshare an event from a room' })
+  async unshareEventFromRoom(
+    @Req() req: AuthenticatedRequest,
+    @Param('eventId') eventId: string,
+    @Param('roomId') roomId: string,
+  ) {
+    return this.scheduleService.unshareEventFromRoom(
+      req.user.userId,
+      eventId,
+      roomId,
+    );
+  }
+
+  @Get('rooms/:roomId/shared-events')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get all shared events in a room' })
+  async getSharedEventsInRoom(
+    @Req() req: AuthenticatedRequest,
+    @Param('roomId') roomId: string,
+    @Query('month') month?: string,
+  ) {
+    return this.scheduleService.getSharedEventsInRoom(
+      req.user.userId,
+      roomId,
+      month,
+    );
   }
 }

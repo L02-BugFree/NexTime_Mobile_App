@@ -9,6 +9,7 @@ import { colors } from '../../theme/colors';
 import { typography } from '../../theme/typography';
 import { getRoomHeatmap } from '../../services/roomService';
 import { RootStackParamList } from '../../navigation/AppNavigator';
+import { getSharedEventsInRoom } from '../../services/scheduleService';
 
 type Route = RouteProp<RootStackParamList, 'GroupHeatmap'>;
 
@@ -29,6 +30,7 @@ export const GroupHeatmapScreen = () => {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [mode, setMode] = useState<'week' | 'month'>('week');
   const [loading, setLoading] = useState(true);
+  const [sharedEvents, setSharedEvents] = useState<any[]>([]);
   const TOTAL_MEMBERS = 10;
 
   const fetchHeatmap = async () => {
@@ -78,6 +80,21 @@ export const GroupHeatmapScreen = () => {
   };
 
   const events = transformHeatmapToEvents(heatmapData, currentDate, TOTAL_MEMBERS);
+
+  const loadSharedEvents = async () => {
+    if (!roomId) return;
+    try {
+      const events = await getSharedEventsInRoom(roomId);
+      setSharedEvents(events);
+    } catch (e) {
+      console.log('Error loading shared events:', e);
+    }
+  };
+
+  useEffect(() => {
+    fetchHeatmap();
+    loadSharedEvents();
+  }, [roomId]);
 
   return (
     <SafeAreaView style={styles.safeArea}>

@@ -9,6 +9,7 @@ import { typography } from '../../theme/typography';
 import { getMonthlyCalendar } from '../../services/scheduleService';
 import { CalendarEvent } from '../../types';
 import { CreateEventModal } from '../../components/calendar/CreateEventModal';
+import { ShareEventModal } from '../../components/calendar/ShareEventModal';
 
 interface BigCalendarEvent extends ICalendarEventBase {
   title: string;
@@ -24,17 +25,35 @@ export const PersonalCalendarScreen: React.FC = () => {
   const [events, setEvents] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [modalVisible, setModalVisible] = useState(false);
+  const [shareModalVisible, setShareModalVisible] = useState(false);
+  const [selectedEventForShare, setSelectedEventForShare] = useState<any>(null);
 
   useEffect(() => {
-    loadEvents();
+    loadEventsForThreeMonths();
   }, [currentDate]);
 
-  const loadEvents = async () => {
+  // Load events for previous, current, and next month
+  const loadEventsForThreeMonths = async () => {
     try {
       setLoading(true);
-      const monthStr = dayjs(currentDate).format('YYYY-MM');
-      const data = await getMonthlyCalendar(monthStr);
-      setEvents(data);
+      
+      const currentMonth = dayjs(currentDate).format('YYYY-MM');
+      const prevMonth = dayjs(currentDate).subtract(1, 'month').format('YYYY-MM');
+      const nextMonth = dayjs(currentDate).add(1, 'month').format('YYYY-MM');
+      
+      const months = [prevMonth, currentMonth, nextMonth];
+      
+      console.log('📅 Fetching months:', months);
+      
+      const allEvents = await Promise.all(
+        months.map(month => getMonthlyCalendar(month))
+      );
+      
+      // Merge all events from 3 months
+      const mergedEvents = allEvents.flat();
+      console.log('📅 Total events loaded:', mergedEvents.length);
+      
+      setEvents(mergedEvents);
     } catch (e) {
       console.log('Error loading events:', e);
     } finally {
@@ -44,6 +63,8 @@ export const PersonalCalendarScreen: React.FC = () => {
 
   const transformEventsForCalendar = (events: any[], viewDate: Date): BigCalendarEvent[] => {
     const result: BigCalendarEvent[] = [];
+    const currentMonth = dayjs(viewDate).month();
+    const currentYear = dayjs(viewDate).year();
     const startOfMonth = dayjs(viewDate).startOf('month');
     
     events.forEach(e => {
@@ -51,7 +72,7 @@ export const PersonalCalendarScreen: React.FC = () => {
         // Map 1=Monday..7=Sunday to JS days 0=Sunday..6=Saturday
         const jsDay = e.dayOfWeek === 7 ? 0 : e.dayOfWeek;
         
-        // Generate for -1 to 5 weeks from the start of the month to cover the calendar grid
+        // Generate for -1 to 5 weeks from the start of the month
         for (let weekOffset = -1; weekOffset <= 5; weekOffset++) {
           const targetDate = startOfMonth.add(weekOffset, 'week').startOf('week').add(jsDay, 'day');
           const dateStr = targetDate.format('YYYY-MM-DD');
@@ -65,20 +86,39 @@ export const PersonalCalendarScreen: React.FC = () => {
           });
         }
       } else if (e.type === 'oneshot' && e.fullDate) {
-        const dateStr = dayjs(e.fullDate).format('YYYY-MM-DD');
-        result.push({
-          title: e.title,
-          start: dayjs(`${dateStr}T${e.startTime}`).toDate(),
-          end: dayjs(`${dateStr}T${e.endTime}`).toDate(),
-          color: e.colorHex || '#3B82F6',
-          originalEvent: e,
-        });
+        const eventDate = dayjs(e.fullDate);
+        const eventMonth = eventDate.month();
+        const eventYear = eventDate.year();
+        
+        // Only show events that are within ±1 month of current view
+        // This prevents showing far-away events but still shows adjacent months
+        const monthDiff = Math.abs((eventYear - currentYear) * 12 + (eventMonth - currentMonth));
+        
+        if (monthDiff <= 1) {
+          const dateStr = eventDate.format('YYYY-MM-DD');
+          result.push({
+            title: e.title,
+            start: dayjs(`${dateStr}T${e.startTime}`).toDate(),
+            end: dayjs(`${dateStr}T${e.endTime}`).toDate(),
+            color: e.colorHex || '#3B82F6',
+            originalEvent: e,
+          });
+        }
       }
     });
+    
+    console.log('🎯 Transformed events for calendar:', result.length);
     return result;
   };
 
   const bigCalendarEvents = transformEventsForCalendar(events, currentDate);
+
+  const handleEventPress = (event: BigCalendarEvent) => {
+    if (event.originalEvent) {
+      setSelectedEventForShare(event.originalEvent);
+      setShareModalVisible(true);
+    }
+  };
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -87,7 +127,7 @@ export const PersonalCalendarScreen: React.FC = () => {
           <View>
             <Text style={styles.headerTitle}>Lịch của tôi</Text>
             <Text style={styles.headerSubtitle}>
-              Tháng {dayjs(currentDate).format('MM/YYYY')} • {mode === 'week' ? 'Tuần' : 'Tháng'}
+              {dayjs(currentDate).format('MMMM YYYY')} • {mode === 'week' ? 'Tuần' : 'Tháng'}
             </Text>
           </View>
           <View style={{ flexDirection: 'row', gap: 12 }}>
@@ -109,19 +149,20 @@ export const PersonalCalendarScreen: React.FC = () => {
               <ActivityIndicator size="large" color="#3B82F6" />
             </View>
           ) : (
-              <Calendar
-                events={bigCalendarEvents}
-                height={600}
-                mode={mode}
-                date={currentDate}
-                onChangeDate={(dates) => {
-                  if (dates && dates.length > 0) {
-                    const newDate = dates[0];
-                    if (currentDate.toISOString() !== newDate.toISOString()) {
-                      setCurrentDate(newDate);
-                    }
+            <Calendar
+              events={bigCalendarEvents}
+              height={600}
+              mode={mode}
+              date={currentDate}
+              onChangeDate={(dates) => {
+                if (dates && dates.length > 0) {
+                  const newDate = dates[0];
+                  if (currentDate.toISOString() !== newDate.toISOString()) {
+                    setCurrentDate(newDate);
                   }
-                }}
+                }
+              }}
+              onPressEvent={(event) => handleEventPress(event)}
               swipeEnabled={true}
               eventCellStyle={(event: BigCalendarEvent) => ({
                 backgroundColor: event.color || '#3B82F6',
@@ -139,8 +180,16 @@ export const PersonalCalendarScreen: React.FC = () => {
       <CreateEventModal
         visible={modalVisible}
         onClose={() => setModalVisible(false)}
-        onSuccess={loadEvents}
+        onSuccess={loadEventsForThreeMonths}
         defaultDate={dayjs(currentDate).format('YYYY-MM-DD')}
+      />
+      <ShareEventModal
+        visible={shareModalVisible}
+        eventId={selectedEventForShare?.originalEventId || selectedEventForShare?._id}
+        eventTitle={selectedEventForShare?.title || ''}
+        currentSharedRooms={selectedEventForShare?.sharedWithRooms || []}
+        onClose={() => setShareModalVisible(false)}
+        onSuccess={loadEventsForThreeMonths}
       />
     </SafeAreaView>
   );

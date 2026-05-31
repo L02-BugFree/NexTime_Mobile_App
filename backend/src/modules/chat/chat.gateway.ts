@@ -11,7 +11,6 @@ import { Server, Socket } from 'socket.io';
 import { UseGuards } from '@nestjs/common';
 import { WsJwtGuard } from './ws-jwt.guard';
 import { ChatService } from './chat.service';
-import { Types } from 'mongoose';
 
 interface AuthenticatedSocket extends Socket {
   user?: {
@@ -199,6 +198,38 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     client.to(`room:${data.roomId}`).emit('user-typing', {
       userId: client.user.userId,
       isTyping: data.isTyping,
+    });
+  }
+
+  // Add handler for calendar events
+  @SubscribeMessage('calendar-event-updated')
+  async handleCalendarEventUpdated(
+    @ConnectedSocket() client: AuthenticatedSocket,
+    @MessageBody()
+    data: {
+      roomId: string;
+      eventId: string;
+      action: 'created' | 'updated' | 'deleted';
+    },
+  ) {
+    if (!client.user) return;
+
+    const { roomId, eventId, action } = data;
+    const userId = client.user.userId;
+
+    // Verify user is member of room
+    const isMember = await this.chatService.isRoomMember(userId, roomId);
+    if (!isMember) {
+      client.emit('error', { message: 'Not authorized' });
+      return;
+    }
+
+    // Broadcast to everyone in the room
+    this.server.to(`room:${roomId}`).emit('calendar-event-changed', {
+      eventId,
+      action,
+      userId,
+      timestamp: new Date(),
     });
   }
 }

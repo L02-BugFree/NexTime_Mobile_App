@@ -49,14 +49,24 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
       return;
     }
 
+    const normalizeTime = (time: string): string => {
+      const parts = time.split(':');
+      const hour = parts[0].padStart(2, '0');
+      const minute = (parts[1] || '00').padStart(2, '0');
+      return `${hour}:${minute}`;
+    };
+
+    const normalizedStartTime = normalizeTime(startTime);
+    const normalizedEndTime = normalizeTime(endTime);
+    
     try {
       setLoading(true);
       if (isWeekly) {
         await createWeeklyEvent({
           title: title.trim(),
           description: desc.trim() || undefined,
-          startTime,
-          endTime,
+          startTime: normalizedStartTime,  // ✅ Dùng thời gian đã chuẩn hóa
+          endTime: normalizedEndTime,      // ✅ Dùng thời gian đã chuẩn hóa
           dayOfWeek,
           colorHex,
           tag: 'default',
@@ -66,8 +76,8 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
           title: title.trim(),
           description: desc.trim() || undefined,
           date,
-          startTime,
-          endTime,
+          startTime: normalizedStartTime,  // ✅ Dùng thời gian đã chuẩn hóa
+          endTime: normalizedEndTime,      // ✅ Dùng thời gian đã chuẩn hóa
           colorHex,
           tag: 'default',
         });
