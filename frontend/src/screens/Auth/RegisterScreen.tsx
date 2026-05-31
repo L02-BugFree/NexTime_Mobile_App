@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, Modal, TextInput,
   KeyboardAvoidingView, Platform, ActivityIndicator,
-  ScrollView,
+  ScrollView, Alert
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -46,7 +46,8 @@ export const RegisterScreen: React.FC = () => {
         displayName: name.trim(),
         friendCode: autoFriendCode
       });
-      navigation.reset({ index: 0, routes: [{ name: 'Main' }] });
+      Alert.alert('Thành công', 'Đăng ký tài khoản thành công! Vui lòng đăng nhập.');
+      navigation.navigate('Auth');
     } catch (err: any) {
       setErrorMsg(err?.response?.data?.message || 'Đăng ký thất bại. Vui lòng thử lại.');
       setErrorModal(true);
