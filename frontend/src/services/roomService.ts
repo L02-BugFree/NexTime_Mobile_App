@@ -29,8 +29,16 @@ export const sendMessage = async (roomId: string, content: string): Promise<Mess
 // };
 
 export const getRoomHeatmap = async (roomId: string, month?: string): Promise<any> => {
-  const response = await axiosClient.get(`/rooms/${roomId}/heatmap`, {
-    params: month ? { month } : undefined,
-  });
-  return response.data;
+  console.log('🔍 Calling heatmap API for room:', roomId, 'month:', month);
+  try {
+    const response = await axiosClient.get(`/rooms/${roomId}/heatmap`, {
+      params: month ? { month } : undefined,
+    });
+    console.log(`📦 Heatmap response for ${month}:`, JSON.stringify(response.data, null, 2));
+    console.log(`📊 busySlots count:`, response.data?.busySlots?.length || 0);
+    return response.data;
+  } catch (error) {
+    console.error(`❌ Heatmap API error for ${month}:`, error);
+    throw error;
+  }
 };

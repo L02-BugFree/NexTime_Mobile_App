@@ -20,15 +20,11 @@ export class HeatmapService {
   async generateHeatmap(
     userIds: string[],
     month?: string,
-    privacyCheck?: (userId: string) => Promise<boolean>, // Optional privacy filter
-  ): Promise<HeatmapSlot[]> {
+    privacyCheck?: (userId: string) => Promise<boolean>,
+  ): Promise<{ busySlots: HeatmapSlot[]; totalMembers: number }> {
     const monthStr = this.validateMonth(month);
-    const monthStart = new Date(`${monthStr}-01T00:00:00.000Z`);
-    const monthEnd = new Date(
-      Date.UTC(monthStart.getUTCFullYear(), monthStart.getUTCMonth() + 1, 1),
-    );
 
-    // Filter users based on privacy if needed
+    // Filter users based on privacy
     let filteredUserIds = userIds;
     if (privacyCheck) {
       const privacyResults = await Promise.all(
@@ -43,11 +39,14 @@ export class HeatmapService {
     }
 
     const memberIdSet = new Set(filteredUserIds);
+
+    // Get calendars of visible members
     const calendars = (
       await this.monthlyCalendarModel.find({ month: monthStr }).lean().exec()
     ).filter((calendar) => memberIdSet.has(calendar.userId.toString()));
 
-    const slotMap = this.createMonthSlotMap(monthStart, monthEnd);
+    // Count busy slots directly from events, NOT creating all slots
+    const busySlotMap = new Map<string, HeatmapSlot>(); // key: "date|startTime|endTime"
 
     for (const calendar of calendars) {
       for (const event of calendar.eventsInMonth ?? []) {
@@ -58,18 +57,34 @@ export class HeatmapService {
         const end = this.combineDateAndTimeUtc(baseDate, event.endTime);
         if (!start || !end || start >= end) continue;
 
+        // Split event into 30-min slots
         for (
           let cursor = new Date(start);
           cursor < end;
           cursor = new Date(cursor.getTime() + 30 * 60 * 1000)
         ) {
-          const slot = slotMap.get(cursor.toISOString());
-          if (slot) slot.busyCount += 1;
+          const slotEnd = new Date(cursor.getTime() + 30 * 60 * 1000);
+          const key = `${cursor.toISOString().slice(0, 10)}|${cursor.toISOString().slice(11, 16)}|${slotEnd.toISOString().slice(11, 16)}`;
+
+          if (busySlotMap.has(key)) {
+            busySlotMap.get(key)!.busyCount += 1;
+          } else {
+            busySlotMap.set(key, {
+              date: cursor.toISOString().slice(0, 10),
+              startTime: cursor.toISOString().slice(11, 16),
+              endTime: slotEnd.toISOString().slice(11, 16),
+              busyCount: 1,
+            });
+          }
         }
       }
     }
 
-    return Array.from(slotMap.values());
+    // Return ONLY busy slots (busyCount > 0)
+    return {
+      busySlots: Array.from(busySlotMap.values()),
+      totalMembers: filteredUserIds.length,
+    };
   }
 
   private validateMonth(month?: string): string {
@@ -101,28 +116,5 @@ export class HeatmapService {
         0,
       ),
     );
-  }
-
-  private createMonthSlotMap(
-    monthStart: Date,
-    monthEnd: Date,
-  ): Map<string, HeatmapSlot> {
-    const slots = new Map<string, HeatmapSlot>();
-
-    for (
-      let cursor = new Date(monthStart);
-      cursor < monthEnd;
-      cursor = new Date(cursor.getTime() + 30 * 60 * 1000)
-    ) {
-      const end = new Date(cursor.getTime() + 30 * 60 * 1000);
-      slots.set(cursor.toISOString(), {
-        date: cursor.toISOString().slice(0, 10),
-        startTime: cursor.toISOString().slice(11, 16),
-        endTime: end.toISOString().slice(11, 16),
-        busyCount: 0,
-      });
-    }
-
-    return slots;
   }
 }
